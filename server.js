@@ -4,23 +4,22 @@ const http = require("http").createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(http);
 
-app.use(express.static("public"));
-
 const PORT = process.env.PORT || 3000;
 
-// Rooms structure
+app.use(express.static("public"));
+
 // rooms = {
 //   roomName: {
-//     password: "123",
-//     locked: false,
-//     hostId: "socketid",
-//     users: {
-//       socketid: { name, avatar, muted }
-//     },
-//     banned: [socketid]
+//     password,
+//     locked,
+//     hostId,
+//     users: { socketId: { name, avatar, muted } },
+//     banned: [socketId]
 //   }
 // }
 let rooms = {};
+let globalAdmins = new Set(); // socket IDs
+let profiles = {}; // socketId -> { friends: [socketId], name, avatar }
 
 function createRoom(roomName, password) {
   rooms[roomName] = {
@@ -33,18 +32,33 @@ function createRoom(roomName, password) {
 }
 
 io.on("connection", (socket) => {
+  console.log("Connected:", socket.id);
   socket.data.room = null;
 
+  profiles[socket.id] = { friends: [], name: "User", avatar: "" };
+
+  // First user becomes global admin
+  if (globalAdmins.size === 0) {
+    globalAdmins.add(socket.id);
+    socket.emit("globalAdmin", true);
+  }
+
+  // Send room list
+  socket.emit("roomList", Object.keys(rooms));
+
+  // Create room
   socket.on("createRoom", ({ roomName, password }) => {
+    if (!roomName) return;
     if (rooms[roomName]) {
       socket.emit("roomError", "Room already exists");
       return;
     }
-    createRoom(roomName, password);
+    createRoom(roomName, password || "");
     socket.emit("roomCreated", roomName);
     io.emit("roomList", Object.keys(rooms));
   });
 
+  // Join room
   socket.on("joinRoom", ({ roomName, password, name, avatar }) => {
     const room = rooms[roomName];
     if (!room) {
@@ -55,7 +69,7 @@ io.on("connection", (socket) => {
       socket.emit("roomError", "Room is locked");
       return;
     }
-    if (room.password !== password) {
+    if (room.password !== (password || "")) {
       socket.emit("roomError", "Incorrect password");
       return;
     }
@@ -67,27 +81,37 @@ io.on("connection", (socket) => {
     socket.join(roomName);
     socket.data.room = roomName;
 
+    const userName = name || `User-${socket.id.slice(0, 4)}`;
+    const userAvatar = avatar || "https://via.placeholder.com/30";
+
     room.users[socket.id] = {
-      name,
-      avatar,
+      name: userName,
+      avatar: userAvatar,
       muted: false
     };
+
+    profiles[socket.id].name = userName;
+    profiles[socket.id].avatar = userAvatar;
 
     if (!room.hostId) room.hostId = socket.id;
 
     socket.emit("joinedRoom", {
       roomName,
-      isHost: socket.id === room.hostId
+      isHost: socket.id === room.hostId,
+      yourId: socket.id
     });
 
     io.to(roomName).emit("userList", room.users);
   });
 
+  // Leave room
   socket.on("leaveRoom", () => {
     const roomName = socket.data.room;
     if (!roomName) return;
 
     const room = rooms[roomName];
+    if (!room) return;
+
     delete room.users[socket.id];
     socket.leave(roomName);
     socket.data.room = null;
@@ -103,7 +127,8 @@ io.on("connection", (socket) => {
     io.to(roomName).emit("userList", room.users);
   });
 
-  socket.on("sendMessage", (msg) => {
+  // Chat message
+  socket.on("sendMessage", (text) => {
     const roomName = socket.data.room;
     if (!roomName) return;
 
@@ -112,60 +137,69 @@ io.on("connection", (socket) => {
     if (!user || user.muted) return;
 
     io.to(roomName).emit("chatMessage", {
+      fromId: socket.id,
       from: user.name,
       avatar: user.avatar,
       isHost: socket.id === room.hostId,
-      text: msg
+      text
     });
   });
 
-  // Guest controls
+  // Guest: change name
   socket.on("changeName", (newName) => {
     const roomName = socket.data.room;
-    if (!roomName) return;
-    rooms[roomName].users[socket.id].name = newName;
-    io.to(roomName).emit("userList", rooms[roomName].users);
+    if (!roomName || !newName) return;
+    const room = rooms[roomName];
+    if (!room.users[socket.id]) return;
+
+    room.users[socket.id].name = newName;
+    profiles[socket.id].name = newName;
+    io.to(roomName).emit("userList", room.users);
   });
 
+  // Guest: change avatar
   socket.on("changeAvatar", (newAvatar) => {
     const roomName = socket.data.room;
-    if (!roomName) return;
-    rooms[roomName].users[socket.id].avatar = newAvatar;
-    io.to(roomName).emit("userList", rooms[roomName].users);
+    if (!roomName || !newAvatar) return;
+    const room = rooms[roomName];
+    if (!room.users[socket.id]) return;
+
+    room.users[socket.id].avatar = newAvatar;
+    profiles[socket.id].avatar = newAvatar;
+    io.to(roomName).emit("userList", room.users);
   });
 
-  // Host controls
+  // Host actions on users
   socket.on("hostAction", ({ action, targetId }) => {
     const roomName = socket.data.room;
     if (!roomName) return;
 
     const room = rooms[roomName];
-    if (socket.id !== room.hostId) return;
+    if (!room || socket.id !== room.hostId) return;
+
+    const targetUser = room.users[targetId];
+    if (!targetUser) return;
 
     switch (action) {
       case "mute":
-        room.users[targetId].muted = true;
+        targetUser.muted = true;
         io.to(targetId).emit("muted", true);
         break;
-
       case "unmute":
-        room.users[targetId].muted = false;
+        targetUser.muted = false;
         io.to(targetId).emit("muted", false);
         break;
-
       case "kick":
         io.to(targetId).emit("kicked");
         io.sockets.sockets.get(targetId)?.leave(roomName);
         delete room.users[targetId];
         break;
-
       case "ban":
         room.banned.push(targetId);
         io.to(targetId).emit("banned");
         io.sockets.sockets.get(targetId)?.leave(roomName);
         delete room.users[targetId];
         break;
-
       case "transferHost":
         room.hostId = targetId;
         io.to(targetId).emit("hostStatus", true);
@@ -175,51 +209,126 @@ io.on("connection", (socket) => {
     io.to(roomName).emit("userList", room.users);
   });
 
+  // Host room controls
   socket.on("hostRoomControl", ({ action, value }) => {
     const roomName = socket.data.room;
     if (!roomName) return;
 
     const room = rooms[roomName];
-    if (socket.id !== room.hostId) return;
+    if (!room || socket.id !== room.hostId) return;
 
     switch (action) {
       case "clearChat":
         io.to(roomName).emit("clearChat");
         break;
-
       case "lockRoom":
         room.locked = true;
+        io.to(roomName).emit("roomStatus", { locked: true });
         break;
-
       case "unlockRoom":
         room.locked = false;
+        io.to(roomName).emit("roomStatus", { locked: false });
         break;
-
       case "changePassword":
-        room.password = value;
+        room.password = value || "";
         break;
     }
   });
 
+  // Direct messages
+  socket.on("sendDM", ({ toId, text }) => {
+    const fromProfile = profiles[socket.id];
+    if (!fromProfile || !toId || !text) return;
+
+    io.to(toId).emit("dmMessage", {
+      fromId: socket.id,
+      fromName: fromProfile.name,
+      text
+    });
+  });
+
+  // Friends system
+  socket.on("addFriend", (targetId) => {
+    if (!profiles[socket.id] || !profiles[targetId]) return;
+    if (!profiles[socket.id].friends.includes(targetId)) {
+      profiles[socket.id].friends.push(targetId);
+    }
+    socket.emit("friendsList", profiles[socket.id].friends);
+  });
+
+  socket.on("removeFriend", (targetId) => {
+    if (!profiles[socket.id]) return;
+    profiles[socket.id].friends = profiles[socket.id].friends.filter(id => id !== targetId);
+    socket.emit("friendsList", profiles[socket.id].friends);
+  });
+
+  // Global admin actions
+  socket.on("globalAdminAction", ({ action, targetId }) => {
+    if (!globalAdmins.has(socket.id)) return;
+
+    switch (action) {
+      case "makeAdmin":
+        globalAdmins.add(targetId);
+        io.to(targetId).emit("globalAdmin", true);
+        break;
+      case "removeAdmin":
+        globalAdmins.delete(targetId);
+        io.to(targetId).emit("globalAdmin", false);
+        break;
+      case "globalKick":
+        io.to(targetId).emit("kickedGlobal");
+        io.sockets.sockets.get(targetId)?.disconnect(true);
+        break;
+    }
+  });
+
+  // File sharing (URL-based)
+  socket.on("shareFile", ({ roomName, fileUrl, fileName }) => {
+    const room = rooms[roomName];
+    if (!room) return;
+    const user = room.users[socket.id];
+    if (!user || !fileUrl || !fileName) return;
+
+    io.to(roomName).emit("fileShared", {
+      from: user.name,
+      avatar: user.avatar,
+      fileUrl,
+      fileName
+    });
+  });
+
+  // WebRTC signaling stub
+  socket.on("rtcSignal", ({ toId, data }) => {
+    io.to(toId).emit("rtcSignal", {
+      fromId: socket.id,
+      data
+    });
+  });
+
+  // Disconnect
   socket.on("disconnect", () => {
     const roomName = socket.data.room;
-    if (!roomName) return;
+    if (roomName && rooms[roomName]) {
+      const room = rooms[roomName];
+      delete room.users[socket.id];
 
-    const room = rooms[roomName];
-    delete room.users[socket.id];
-
-    if (socket.id === room.hostId) {
-      const remaining = Object.keys(room.users);
-      room.hostId = remaining[0] || null;
-      if (room.hostId) {
-        io.to(room.hostId).emit("hostStatus", true);
+      if (socket.id === room.hostId) {
+        const remaining = Object.keys(room.users);
+        room.hostId = remaining[0] || null;
+        if (room.hostId) {
+          io.to(room.hostId).emit("hostStatus", true);
+        }
       }
+
+      io.to(roomName).emit("userList", room.users);
     }
 
-    io.to(roomName).emit("userList", room.users);
+    delete profiles[socket.id];
+    globalAdmins.delete(socket.id);
+    console.log("Disconnected:", socket.id);
   });
-
-  io.emit("roomList", Object.keys(rooms));
 });
 
-http.listen(PORT, () => console.log("ChatTy Ultra running"));
+http.listen(PORT, () => {
+  console.log(`ChatTy Ultra+ running on port ${PORT}`);
+});
