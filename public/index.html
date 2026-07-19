@@ -18,9 +18,9 @@
     <button id="signinCreateRoomBtn">Create Room & Join</button>
     <button id="signinJoinRoomBtn">Join Room</button>
     <div id="signinError"></div>
-    <!-- GOOGLE SIGN-IN PLACEHOLDER:
-         When you have credentials, you can add a "Sign in with Google" button here
-         and call your OAuth flow, then pass the name/avatar into joinRoom. -->
+
+    <h3>Or</h3>
+    <div id="googleBtn"></div>
   </div>
 </div>
 
@@ -97,6 +97,7 @@
     <input id="profileName" placeholder="Name">
     <input id="profileAvatar" placeholder="Avatar URL">
     <button id="saveProfileBtn">Save</button>
+    <div id="profileInfo"></div>
     <button class="closeModal">Close</button>
   </div>
 </div>
@@ -111,6 +112,8 @@
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/jwt-decode@3.1.2/build/jwt-decode.min.js"></script>
 <script src="client.js"></script>
 </body>
 </html>
