@@ -7,108 +7,107 @@
 </head>
 <body class="theme-dark">
 
-<div id="roomMenu">
-  <h2>ChatTy Ultra+</h2>
-
-  <h3>Create Room</h3>
-  <input id="newRoomName" placeholder="Room name">
-  <input id="newRoomPassword" placeholder="Password (optional)">
-  <button id="createRoomBtn">Create</button>
-
-  <h3>Available Rooms</h3>
-  <div id="roomList"></div>
-
-  <h3>Join Room</h3>
-  <input id="joinRoomName" placeholder="Room name">
-  <input id="joinRoomPassword" placeholder="Password">
-  <input id="joinName" placeholder="Your name">
-  <input id="joinAvatar" placeholder="Avatar URL">
-  <button id="joinRoomBtn">Join</button>
-</div>
-
-<div id="chatUI" style="display:none;">
-  <div id="sidebar">
-    <h3>Room Users</h3>
-    <div id="users"></div>
-
-    <h3>Your Controls</h3>
-    <button id="changeNameBtn">Change Name</button>
-    <button id="changeAvatarBtn">Change Avatar</button>
-    <button id="leaveRoomBtn">Leave Room</button>
-
-    <div id="hostControls" style="display:none;">
-      <h3>Host Controls</h3>
-      <button id="clearChatBtn">Clear Chat</button>
-      <button id="lockRoomBtn">Lock Room</button>
-      <button id="unlockRoomBtn">Unlock Room</button>
-      <button id="changePasswordBtn">Change Password</button>
-      <p>Per-user:</p>
-      <input id="hostTargetId" placeholder="Target socket ID">
-      <button id="hostMuteBtn">Mute</button>
-      <button id="hostUnmuteBtn">Unmute</button>
-      <button id="hostKickBtn">Kick</button>
-      <button id="hostBanBtn">Ban</button>
-      <button id="hostTransferBtn">Transfer Host</button>
-    </div>
-
-    <div id="extraControls">
-      <h3>DM & Friends</h3>
-      <button id="openDMBtn">Open DM Panel</button>
-      <button id="addFriendBtn">Add Friend (by ID)</button>
-      <button id="removeFriendBtn">Remove Friend (by ID)</button>
-
-      <h3>Theme</h3>
-      <button class="themeBtn" data-theme="light">Light</button>
-      <button class="themeBtn" data-theme="dark">Dark</button>
-      <button class="themeBtn" data-theme="blue">Blue</button>
-
-      <h3>Emoji</h3>
-      <select id="emojiPicker">
-        <option value="">(pick emoji)</option>
-        <option>😀</option>
-        <option>😂</option>
-        <option>😍</option>
-        <option>😎</option>
-        <option>👍</option>
-        <option>🔥</option>
-        <option>🎉</option>
-      </select>
-
-      <h3>Files</h3>
-      <input id="fileUrlInput" placeholder="File URL">
-      <input id="fileNameInput" placeholder="File name">
-      <button id="shareFileBtn">Share File</button>
-
-      <div id="adminControls" style="display:none;">
-        <h3>Global Admin</h3>
-        <input id="adminTargetId" placeholder="Target socket ID">
-        <button id="makeAdminBtn">Make Admin</button>
-        <button id="removeAdminBtn">Remove Admin</button>
-        <button id="globalKickBtn">Global Kick</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="chatArea">
-    <div id="roomInfo">
-      <span id="roomNameLabel"></span>
-      <span id="roomStatusLabel"></span>
-      <span id="yourIdLabel"></span>
-    </div>
-    <div id="messages"></div>
-    <div id="inputRow">
-      <input id="msgInput" placeholder="Message">
-      <button id="sendBtn">Send</button>
-    </div>
+<!-- SIGN-IN SCREEN -->
+<div id="signinScreen">
+  <div id="signinBox">
+    <h2>Sign in to ChatTy Ultra+</h2>
+    <input id="signinName" placeholder="Your name">
+    <input id="signinAvatar" placeholder="Avatar URL (optional)">
+    <input id="signinRoomName" placeholder="Room name">
+    <input id="signinRoomPassword" placeholder="Room password (optional)">
+    <button id="signinCreateRoomBtn">Create Room & Join</button>
+    <button id="signinJoinRoomBtn">Join Room</button>
+    <div id="signinError"></div>
+    <!-- GOOGLE SIGN-IN PLACEHOLDER:
+         When you have credentials, you can add a "Sign in with Google" button here
+         and call your OAuth flow, then pass the name/avatar into joinRoom. -->
   </div>
 </div>
 
-<div id="dmPanel" style="display:none;">
+<!-- TOP BAR -->
+<div id="topBar">
+  <div id="roomTitle"></div>
+  <div id="userStatus"></div>
+  <div id="topButtons">
+    <button id="openUsersBtn">Users</button>
+    <button id="openDMsBtn">DMs</button>
+    <button id="openRoomInfoBtn">Room Info</button>
+    <button id="openProfileBtn">Profile</button>
+  </div>
+</div>
+
+<!-- MAIN CHAT AREA -->
+<div id="chatArea">
+  <div id="messages"></div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div id="bottomBar">
+  <button id="emojiBtn">😀</button>
+  <button id="fileBtn">📎</button>
+  <input id="msgInput" placeholder="Message">
+  <button id="sendBtn">Send</button>
+</div>
+
+<!-- RIGHT DRAWER: USER LIST -->
+<div id="userDrawer" class="drawer">
+  <h3>Users</h3>
+  <div id="users"></div>
+
+  <h4>Host Controls</h4>
+  <div id="hostControls">
+    <input id="hostTargetId" placeholder="Target socket ID">
+    <button id="hostMuteBtn">Mute</button>
+    <button id="hostUnmuteBtn">Unmute</button>
+    <button id="hostKickBtn">Kick</button>
+    <button id="hostBanBtn">Ban</button>
+    <button id="hostTransferBtn">Transfer Host</button>
+    <button id="clearChatBtn">Clear Chat</button>
+    <button id="lockRoomBtn">Lock Room</button>
+    <button id="unlockRoomBtn">Unlock Room</button>
+    <button id="changePasswordBtn">Change Password</button>
+  </div>
+
+  <h4>Global Admin</h4>
+  <div id="adminControls">
+    <input id="adminTargetId" placeholder="Target socket ID">
+    <button id="makeAdminBtn">Make Admin</button>
+    <button id="removeAdminBtn">Remove Admin</button>
+    <button id="globalKickBtn">Global Kick</button>
+  </div>
+</div>
+
+<!-- LEFT DRAWER: DM PANEL -->
+<div id="dmDrawer" class="drawer left">
   <h3>Direct Messages</h3>
-  <input id="dmTargetId" placeholder="Target socket ID">
+  <input id="dmTargetId" placeholder="Target ID">
   <input id="dmText" placeholder="Message">
   <button id="sendDMBtn">Send DM</button>
   <div id="dmMessages"></div>
+
+  <h4>Friends</h4>
+  <button id="addFriendBtn">Add Friend (by ID)</button>
+  <button id="removeFriendBtn">Remove Friend (by ID)</button>
+</div>
+
+<!-- PROFILE MODAL -->
+<div id="profileModal" class="modal">
+  <div class="modalContent">
+    <h3>Your Profile</h3>
+    <input id="profileName" placeholder="Name">
+    <input id="profileAvatar" placeholder="Avatar URL">
+    <button id="saveProfileBtn">Save</button>
+    <button class="closeModal">Close</button>
+  </div>
+</div>
+
+<!-- ROOM INFO MODAL -->
+<div id="roomInfoModal" class="modal">
+  <div class="modalContent">
+    <h3>Room Info</h3>
+    <div id="roomInfoContent"></div>
+    <button class="closeModal">Close</button>
+  </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
