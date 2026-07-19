@@ -23,7 +23,7 @@ let profiles = {}; // socketId -> { friends: [socketId], name, avatar }
 
 function createRoom(roomName, password) {
   rooms[roomName] = {
-    password,
+    password: password || "",
     locked: false,
     hostId: null,
     users: {},
@@ -43,7 +43,6 @@ io.on("connection", (socket) => {
     socket.emit("globalAdmin", true);
   }
 
-  // Send room list
   socket.emit("roomList", Object.keys(rooms));
 
   // Create room
@@ -53,12 +52,12 @@ io.on("connection", (socket) => {
       socket.emit("roomError", "Room already exists");
       return;
     }
-    createRoom(roomName, password || "");
+    createRoom(roomName, password);
     socket.emit("roomCreated", roomName);
     io.emit("roomList", Object.keys(rooms));
   });
 
-  // Join room
+  // Join room (sign-in + join)
   socket.on("joinRoom", ({ roomName, password, name, avatar }) => {
     const room = rooms[roomName];
     if (!room) {
@@ -141,8 +140,19 @@ io.on("connection", (socket) => {
       from: user.name,
       avatar: user.avatar,
       isHost: socket.id === room.hostId,
-      text
+      text,
+      time: new Date().toLocaleTimeString()
     });
+  });
+
+  // Typing indicator
+  socket.on("typing", () => {
+    const roomName = socket.data.room;
+    if (!roomName) return;
+    const room = rooms[roomName];
+    const user = room.users[socket.id];
+    if (!user) return;
+    io.to(roomName).emit("typing", user.name);
   });
 
   // Guest: change name
@@ -243,7 +253,8 @@ io.on("connection", (socket) => {
     io.to(toId).emit("dmMessage", {
       fromId: socket.id,
       fromName: fromProfile.name,
-      text
+      text,
+      time: new Date().toLocaleTimeString()
     });
   });
 
@@ -293,11 +304,12 @@ io.on("connection", (socket) => {
       from: user.name,
       avatar: user.avatar,
       fileUrl,
-      fileName
+      fileName,
+      time: new Date().toLocaleTimeString()
     });
   });
 
-  // WebRTC signaling stub
+  // WebRTC signaling stub (for future voice/video)
   socket.on("rtcSignal", ({ toId, data }) => {
     io.to(toId).emit("rtcSignal", {
       fromId: socket.id,
