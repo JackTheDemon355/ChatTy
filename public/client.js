@@ -82,7 +82,7 @@ window.googleUser = null;
 window.onload = function () {
   if (window.google && google.accounts && google.accounts.id) {
     google.accounts.id.initialize({
-      client_id: "YOUR_GOOGLE_CLIENT_ID_HERE",
+      client_id: "37880690107-orfv60c36b5f5qh0d9sm7cr6ncn2kq21.apps.googleusercontent.com",
       callback: handleGoogleLogin
     });
 
