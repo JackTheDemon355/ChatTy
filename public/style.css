@@ -54,7 +54,7 @@ body {
   background:#222;
   padding:20px;
   border-radius:8px;
-  width:300px;
+  width:320px;
   text-align:center;
 }
 
@@ -155,7 +155,7 @@ body {
   background:#333;
   padding:20px;
   border-radius:8px;
-  width:300px;
+  width:320px;
 }
 
 /* MESSAGES */
@@ -196,6 +196,16 @@ body {
   margin-left:auto;
   font-size:11px;
   color:#aaa;
+}
+
+/* GOOGLE BADGE */
+.googleBadge {
+  background:#4285F4;
+  color:white;
+  padding:2px 4px;
+  border-radius:4px;
+  font-size:10px;
+  margin-left:4px;
 }
 
 /* BUTTONS */
