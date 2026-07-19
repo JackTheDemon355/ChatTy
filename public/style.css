@@ -2,19 +2,12 @@
   --bg:#111;
   --text:#fff;
   --sidebar-bg:#222;
-  --chat-bg:#f0f0f0;
+  --chat-bg:#1a1a1a;
+  --font-ui: Calibri, Arial, sans-serif;
+  --font-heading: "Aptos Slab", Calibri, serif;
 }
 
-body {
-  margin:0;
-  font-family:Calibri, Aptos Slab;
-  display:flex;
-  height:100vh;
-  background:var(--bg);
-  color:var(--text);
-}
-
-/* Themes */
+/* THEMES */
 .theme-light {
   --bg:#ffffff;
   --text:#000000;
@@ -25,7 +18,7 @@ body {
   --bg:#111111;
   --text:#ffffff;
   --sidebar-bg:#222222;
-  --chat-bg:#f0f0f0;
+  --chat-bg:#1a1a1a;
 }
 .theme-blue {
   --bg:#001f3f;
@@ -34,62 +27,157 @@ body {
   --chat-bg:#f0f8ff;
 }
 
-#roomMenu {
-  width:300px;
-  background:var(--sidebar-bg);
-  padding:20px;
-  box-sizing:border-box;
-  overflow-y:auto;
-}
-
-#chatUI {
-  flex:1;
-  display:flex;
-}
-
-#sidebar {
-  width:280px;
-  background:var(--sidebar-bg);
-  padding:10px;
-  box-sizing:border-box;
-  overflow-y:auto;
-}
-
-#chatArea {
-  flex:1;
+body {
+  margin:0;
+  font-family:var(--font-ui);
+  background:var(--bg);
+  color:var(--text);
+  height:100vh;
   display:flex;
   flex-direction:column;
-  background:var(--chat-bg);
+  overflow:hidden;
 }
 
-#roomInfo {
+/* SIGN-IN */
+#signinScreen {
+  position:fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background:rgba(0,0,0,0.8);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  z-index:1000;
+}
+
+#signinBox {
+  background:#222;
+  padding:20px;
+  border-radius:8px;
+  width:300px;
+  text-align:center;
+}
+
+#signinBox input {
+  width:100%;
+  margin-bottom:8px;
   padding:8px;
-  background:#ddd;
+  box-sizing:border-box;
+}
+
+#signinError {
+  color:#e74c3c;
   font-size:12px;
 }
 
-#messages {
-  flex:1;
-  padding:10px;
-  overflow-y:auto;
+/* TOP BAR */
+#topBar {
+  height:50px;
+  background:#000;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 15px;
+  font-family:var(--font-heading);
 }
 
-#inputRow {
+#roomTitle {
+  font-weight:bold;
+}
+
+#userStatus {
+  font-size:12px;
+}
+
+/* CHAT AREA */
+#chatArea {
+  flex:1;
+  overflow-y:auto;
+  background:var(--chat-bg);
+  padding:15px;
+}
+
+/* BOTTOM BAR */
+#bottomBar {
+  height:60px;
+  background:#000;
   display:flex;
-  padding:10px;
-  background:#ccc;
+  align-items:center;
+  padding:0 10px;
 }
 
 #msgInput {
   flex:1;
+  margin:0 10px;
+  padding:10px;
+}
+
+/* DRAWERS */
+.drawer {
+  position:fixed;
+  top:50px;
+  right:-300px;
+  width:300px;
+  height:calc(100vh - 50px);
+  background:var(--sidebar-bg);
+  padding:15px;
+  transition:0.3s;
+  overflow-y:auto;
+  z-index:900;
+}
+
+.drawer.left {
+  left:-300px;
+  right:auto;
+}
+
+.drawer.open {
+  right:0;
+}
+
+.drawer.left.open {
+  left:0;
+}
+
+/* MODALS */
+.modal {
+  display:none;
+  position:fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background:rgba(0,0,0,0.7);
+  justify-content:center;
+  align-items:center;
+  z-index:950;
+}
+
+.modalContent {
+  background:#333;
+  padding:20px;
+  border-radius:8px;
+  width:300px;
+}
+
+/* MESSAGES */
+.msg {
+  margin-bottom:10px;
   padding:8px;
+  background:#222;
+  border-radius:6px;
+  font-size:14px;
 }
 
-#sendBtn {
-  padding:8px 12px;
-  margin-left:8px;
+.msg-sender {
+  font-family:var(--font-heading);
+  font-weight:bold;
 }
 
+.msg-time {
+  font-size:11px;
+  color:#aaa;
+}
+
+/* USERS */
 .userItem {
   display:flex;
   align-items:center;
@@ -104,57 +192,13 @@ body {
   margin-right:6px;
 }
 
-.msg {
-  margin-bottom:6px;
-  font-size:14px;
+.userItem .id {
+  margin-left:auto;
+  font-size:11px;
+  color:#aaa;
 }
 
-.msg-host {
-  color:#c0392b;
-  font-weight:bold;
-}
-
-.msg-system {
-  color:#7f8c8d;
-  font-style:italic;
-}
-
-#extraControls {
-  margin-top:10px;
-  border-top:1px solid #444;
-  padding-top:10px;
-  font-size:13px;
-}
-
-#dmPanel {
-  position:fixed;
-  right:10px;
-  top:10px;
-  width:260px;
-  height:320px;
-  background:#444;
-  color:#fff;
-  padding:10px;
-  box-sizing:border-box;
-  overflow-y:auto;
-  border-radius:4px;
-  box-shadow:0 0 10px rgba(0,0,0,0.5);
-  font-size:13px;
-}
-
-#dmPanel input {
-  width:100%;
-  margin-bottom:6px;
-  padding:6px;
-  box-sizing:border-box;
-}
-
-#dmMessages {
-  max-height:200px;
-  overflow-y:auto;
-  margin-top:6px;
-}
-
+/* BUTTONS */
 button {
   cursor:pointer;
 }
