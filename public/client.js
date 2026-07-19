@@ -62,11 +62,12 @@ const removeFriendBtn = document.getElementById("removeFriendBtn");
 const profileName = document.getElementById("profileName");
 const profileAvatar = document.getElementById("profileAvatar");
 const saveProfileBtn = document.getElementById("saveProfileBtn");
+const profileInfo = document.getElementById("profileInfo");
 
 // Room info modal
 const roomInfoContent = document.getElementById("roomInfoContent");
 
-// Emoji & file (file button placeholder)
+// Emoji & file
 const emojiBtn = document.getElementById("emojiBtn");
 const fileBtn = document.getElementById("fileBtn");
 
@@ -75,13 +76,46 @@ let currentRoomName = null;
 let mySocketId = null;
 let isHost = false;
 let isGlobalAdmin = false;
+window.googleUser = null;
+
+// GOOGLE SIGN-IN INIT
+window.onload = function () {
+  if (window.google && google.accounts && google.accounts.id) {
+    google.accounts.id.initialize({
+      client_id: "YOUR_GOOGLE_CLIENT_ID_HERE",
+      callback: handleGoogleLogin
+    });
+
+    google.accounts.id.renderButton(
+      document.getElementById("googleBtn"),
+      { theme: "outline", size: "large" }
+    );
+  }
+};
+
+function handleGoogleLogin(response) {
+  const data = jwt_decode(response.credential);
+  window.googleUser = {
+    name: data.name,
+    avatar: data.picture,
+    email: data.email,
+    googleId: data.sub
+  };
+  signinName.value = data.name;
+  signinAvatar.value = data.picture;
+}
 
 // DRAWER TOGGLES
 openUsersBtn.onclick = () => userDrawer.classList.toggle("open");
 openDMsBtn.onclick = () => dmDrawer.classList.toggle("open");
 
 // MODAL TOGGLES
-openProfileBtn.onclick = () => profileModal.style.display = "flex";
+openProfileBtn.onclick = () => {
+  profileModal.style.display = "flex";
+  profileName.value = signinName.value.trim();
+  profileAvatar.value = signinAvatar.value.trim();
+  profileInfo.innerHTML = window.googleUser ? "<p>Signed in with Google</p>" : "<p>Manual sign-in</p>";
+};
 openRoomInfoBtn.onclick = () => roomInfoModal.style.display = "flex";
 
 document.querySelectorAll(".closeModal").forEach(btn => {
@@ -97,7 +131,6 @@ signinCreateRoomBtn.onclick = () => {
     return;
   }
   socket.emit("createRoom", { roomName, password });
-  // After creation, join
   socket.once("roomCreated", () => {
     joinRoom(roomName, password);
   });
@@ -114,13 +147,20 @@ signinJoinRoomBtn.onclick = () => {
 };
 
 function joinRoom(roomName, password) {
-  const name = signinName.value.trim() || "Guest";
-  const avatar = signinAvatar.value.trim();
+  let name = signinName.value.trim() || "Guest";
+  let avatar = signinAvatar.value.trim();
+
+  if (window.googleUser) {
+    name = window.googleUser.name;
+    avatar = window.googleUser.avatar;
+  }
+
   socket.emit("joinRoom", {
     roomName,
     password,
     name,
-    avatar
+    avatar,
+    googleId: window.googleUser ? window.googleUser.googleId : null
   });
 }
 
@@ -143,7 +183,7 @@ socket.on("joinedRoom", ({ roomName, isHost: hostFlag, yourId }) => {
   addSystemMessage(`Joined room ${roomName}${isHost ? " as HOST" : ""}`);
 });
 
-// ROOM LIST (optional display in console)
+// ROOM LIST (optional)
 socket.on("roomList", (rooms) => {
   console.log("Rooms:", rooms);
 });
@@ -154,19 +194,20 @@ socket.on("userList", (users) => {
   Object.entries(users).forEach(([id, u]) => {
     const div = document.createElement("div");
     div.className = "userItem";
+    const googleTag = u.googleId ? `<span class="googleBadge">Google ✓</span>` : "";
     div.innerHTML = `
       <img class="avatar" src="${u.avatar}">
-      <span>${u.name}</span>
+      <span>${u.name} ${googleTag}</span>
       <span class="id">${id.slice(0,5)}</span>
       <button onclick="navigator.clipboard.writeText('${id}')">Copy ID</button>
     `;
     usersEl.appendChild(div);
   });
 
-  // Room info content
   roomInfoContent.innerHTML = `
     <p>Users: ${Object.keys(users).length}</p>
     <p>Host: ${Object.entries(users).find(([id]) => id === mySocketId && isHost) ? "You" : "Someone else"}</p>
+    ${window.googleUser ? "<p>You are signed in with Google</p>" : "<p>You are not using Google</p>"}
   `;
 });
 
@@ -174,8 +215,9 @@ socket.on("userList", (users) => {
 socket.on("chatMessage", (msg) => {
   const div = document.createElement("div");
   div.className = "msg";
+  const googleTag = msg.googleId ? `<span class="googleBadge">Google</span>` : "";
   div.innerHTML = `
-    <div class="msg-sender">${msg.from} ${msg.isHost ? "(HOST)" : ""}</div>
+    <div class="msg-sender">${msg.from} ${msg.isHost ? "(HOST)" : ""} ${googleTag}</div>
     <div>${msg.text}</div>
     <div class="msg-time">${msg.time}</div>
   `;
@@ -254,7 +296,7 @@ emojiBtn.onclick = () => {
   if (emoji) msgInput.value += " " + emoji;
 };
 
-// FILE (placeholder)
+// FILE
 fileBtn.onclick = () => {
   const url = prompt("File URL:");
   const name = prompt("File name:");
@@ -269,8 +311,9 @@ fileBtn.onclick = () => {
 socket.on("fileShared", (file) => {
   const div = document.createElement("div");
   div.className = "msg";
+  const googleTag = file.googleId ? `<span class="googleBadge">Google</span>` : "";
   div.innerHTML = `
-    <div class="msg-sender">${file.from} shared a file</div>
+    <div class="msg-sender">${file.from} shared a file ${googleTag}</div>
     <div><a href="${file.fileUrl}" target="_blank">${file.fileName}</a></div>
     <div class="msg-time">${file.time}</div>
   `;
@@ -346,8 +389,9 @@ sendDMBtn.onclick = () => {
 };
 
 socket.on("dmMessage", (msg) => {
+  const googleTag = msg.googleId ? " (Google)" : "";
   const div = document.createElement("div");
-  div.textContent = `[DM from ${msg.fromName} (${msg.fromId.slice(0,5)})] ${msg.text} (${msg.time})`;
+  div.textContent = `[DM from ${msg.fromName}${googleTag}] ${msg.text} (${msg.time})`;
   dmMessagesEl.appendChild(div);
 });
 
@@ -377,7 +421,6 @@ saveProfileBtn.onclick = () => {
 // WEBRTC SIGNAL STUB
 socket.on("rtcSignal", ({ fromId, data }) => {
   console.log("RTC signal from", fromId, data);
-  // Hook into RTCPeerConnection when you add voice/video
 });
 
 // HELPERS
