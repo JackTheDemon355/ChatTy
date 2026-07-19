@@ -13,21 +13,30 @@ app.use(express.static("public"));
 //     password,
 //     locked,
 //     hostId,
-//     users: { socketId: { name, avatar, muted, googleId } },
-//     banned: [socketId]
+//     users: { socketId: { name, avatar, muted, googleId, googleEmail } },
+//     banned: [socketId],
+//     googleOnly: false,
+//     googleVerified: false
 //   }
 // }
 let rooms = {};
 let globalAdmins = new Set(); // socket IDs
-let profiles = {}; // socketId -> { friends: [socketId], name, avatar, googleId }
+let globalAdminEmails = new Set([
+  // add your Google emails here for auto-admin
+  "youremail@example.com"
+]);
 
-function createRoom(roomName, password) {
+let profiles = {}; // socketId -> { friends: [socketId], name, avatar, googleId, googleEmail }
+
+function createRoom(roomName, password, googleOnly, googleVerified) {
   rooms[roomName] = {
     password: password || "",
     locked: false,
     hostId: null,
     users: {},
-    banned: []
+    banned: [],
+    googleOnly: !!googleOnly,
+    googleVerified: !!googleVerified
   };
 }
 
@@ -35,9 +44,15 @@ io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
   socket.data.room = null;
 
-  profiles[socket.id] = { friends: [], name: "User", avatar: "", googleId: null };
+  profiles[socket.id] = {
+    friends: [],
+    name: "User",
+    avatar: "",
+    googleId: null,
+    googleEmail: null
+  };
 
-  // First user becomes global admin
+  // First connection becomes global admin (fallback)
   if (globalAdmins.size === 0) {
     globalAdmins.add(socket.id);
     socket.emit("globalAdmin", true);
@@ -46,19 +61,19 @@ io.on("connection", (socket) => {
   socket.emit("roomList", Object.keys(rooms));
 
   // Create room
-  socket.on("createRoom", ({ roomName, password }) => {
+  socket.on("createRoom", ({ roomName, password, googleOnly, googleVerified }) => {
     if (!roomName) return;
     if (rooms[roomName]) {
       socket.emit("roomError", "Room already exists");
       return;
     }
-    createRoom(roomName, password);
+    createRoom(roomName, password, googleOnly, googleVerified);
     socket.emit("roomCreated", roomName);
     io.emit("roomList", Object.keys(rooms));
   });
 
   // Join room (sign-in + join)
-  socket.on("joinRoom", ({ roomName, password, name, avatar, googleId }) => {
+  socket.on("joinRoom", ({ roomName, password, name, avatar, googleId, googleEmail }) => {
     const room = rooms[roomName];
     if (!room) {
       socket.emit("roomError", "Room does not exist");
@@ -77,6 +92,12 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // Google-only access rooms
+    if (room.googleOnly && !googleId) {
+      socket.emit("roomError", "This room requires Google Sign-In.");
+      return;
+    }
+
     socket.join(roomName);
     socket.data.room = roomName;
 
@@ -87,19 +108,35 @@ io.on("connection", (socket) => {
       name: userName,
       avatar: userAvatar,
       muted: false,
-      googleId: googleId || null
+      googleId: googleId || null,
+      googleEmail: googleEmail || null
     };
 
     profiles[socket.id].name = userName;
     profiles[socket.id].avatar = userAvatar;
     profiles[socket.id].googleId = googleId || null;
+    profiles[socket.id].googleEmail = googleEmail || null;
 
+    // Host assignment
     if (!room.hostId) room.hostId = socket.id;
+
+    // Google-based admin roles (by email)
+    if (googleEmail && globalAdminEmails.has(googleEmail)) {
+      globalAdmins.add(socket.id);
+      socket.emit("globalAdmin", true);
+    }
+
+    // Google-verified rooms: mark if host has Google
+    if (room.googleVerified && !profiles[room.hostId]?.googleId) {
+      room.googleVerified = false; // fallback if host not Google
+    }
 
     socket.emit("joinedRoom", {
       roomName,
       isHost: socket.id === room.hostId,
-      yourId: socket.id
+      yourId: socket.id,
+      googleOnly: room.googleOnly,
+      googleVerified: room.googleVerified
     });
 
     io.to(roomName).emit("userList", room.users);
@@ -143,6 +180,7 @@ io.on("connection", (socket) => {
       avatar: user.avatar,
       isHost: socket.id === room.hostId,
       googleId: user.googleId || null,
+      googleEmail: user.googleEmail || null,
       text,
       time: new Date().toLocaleTimeString()
     });
@@ -245,6 +283,20 @@ io.on("connection", (socket) => {
       case "changePassword":
         room.password = value || "";
         break;
+      case "toggleGoogleOnly":
+        room.googleOnly = !room.googleOnly;
+        io.to(roomName).emit("roomFlags", {
+          googleOnly: room.googleOnly,
+          googleVerified: room.googleVerified
+        });
+        break;
+      case "toggleGoogleVerified":
+        room.googleVerified = !room.googleVerified;
+        io.to(roomName).emit("roomFlags", {
+          googleOnly: room.googleOnly,
+          googleVerified: room.googleVerified
+        });
+        break;
     }
   });
 
@@ -257,6 +309,7 @@ io.on("connection", (socket) => {
       fromId: socket.id,
       fromName: fromProfile.name,
       googleId: fromProfile.googleId || null,
+      googleEmail: fromProfile.googleEmail || null,
       text,
       time: new Date().toLocaleTimeString()
     });
@@ -308,6 +361,7 @@ io.on("connection", (socket) => {
       from: user.name,
       avatar: user.avatar,
       googleId: user.googleId || null,
+      googleEmail: user.googleEmail || null,
       fileUrl,
       fileName,
       time: new Date().toLocaleTimeString()
