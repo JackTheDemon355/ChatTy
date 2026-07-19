@@ -6,8 +6,11 @@ const signinName = document.getElementById("signinName");
 const signinAvatar = document.getElementById("signinAvatar");
 const signinRoomName = document.getElementById("signinRoomName");
 const signinRoomPassword = document.getElementById("signinRoomPassword");
+const signinGoogleOnly = document.getElementById("signinGoogleOnly");
+const signinGoogleVerified = document.getElementById("signinGoogleVerified");
 const signinCreateRoomBtn = document.getElementById("signinCreateRoomBtn");
 const signinJoinRoomBtn = document.getElementById("signinJoinRoomBtn");
+const signinSignOutBtn = document.getElementById("signinSignOutBtn");
 const signinError = document.getElementById("signinError");
 
 // TOP/BOTTOM
@@ -42,6 +45,8 @@ const clearChatBtn = document.getElementById("clearChatBtn");
 const lockRoomBtn = document.getElementById("lockRoomBtn");
 const unlockRoomBtn = document.getElementById("unlockRoomBtn");
 const changePasswordBtn = document.getElementById("changePasswordBtn");
+const toggleGoogleOnlyBtn = document.getElementById("toggleGoogleOnlyBtn");
+const toggleGoogleVerifiedBtn = document.getElementById("toggleGoogleVerifiedBtn");
 
 // Admin controls
 const adminControlsEl = document.getElementById("adminControls");
@@ -71,18 +76,24 @@ const roomInfoContent = document.getElementById("roomInfoContent");
 const emojiBtn = document.getElementById("emojiBtn");
 const fileBtn = document.getElementById("fileBtn");
 
+// Theme buttons
+const themeLightBtn = document.getElementById("themeLightBtn");
+const themeDarkBtn = document.getElementById("themeDarkBtn");
+const themeBlueBtn = document.getElementById("themeBlueBtn");
+
 // STATE
 let currentRoomName = null;
 let mySocketId = null;
 let isHost = false;
 let isGlobalAdmin = false;
+let currentRoomFlags = { googleOnly: false, googleVerified: false };
 window.googleUser = null;
 
 // GOOGLE SIGN-IN INIT
 window.onload = function () {
   if (window.google && google.accounts && google.accounts.id) {
     google.accounts.id.initialize({
-      client_id: "37880690107-orfv60c36b5f5qh0d9sm7cr6ncn2kq21.apps.googleusercontent.com",
+      client_id: "YOUR_GOOGLE_CLIENT_ID_HERE",
       callback: handleGoogleLogin
     });
 
@@ -101,9 +112,19 @@ function handleGoogleLogin(response) {
     email: data.email,
     googleId: data.sub
   };
+  // Google profile syncing + avatar auto-refresh
   signinName.value = data.name;
   signinAvatar.value = data.picture;
+  profileInfo.innerHTML = `<p>Signed in with Google: ${data.email}</p>`;
 }
+
+// Multi-account switching: sign out
+signinSignOutBtn.onclick = () => {
+  window.googleUser = null;
+  signinName.value = "";
+  signinAvatar.value = "";
+  profileInfo.innerHTML = "<p>Manual sign-in</p>";
+};
 
 // DRAWER TOGGLES
 openUsersBtn.onclick = () => userDrawer.classList.toggle("open");
@@ -114,23 +135,44 @@ openProfileBtn.onclick = () => {
   profileModal.style.display = "flex";
   profileName.value = signinName.value.trim();
   profileAvatar.value = signinAvatar.value.trim();
-  profileInfo.innerHTML = window.googleUser ? "<p>Signed in with Google</p>" : "<p>Manual sign-in</p>";
+  profileInfo.innerHTML = window.googleUser
+    ? `<p>Signed in with Google: ${window.googleUser.email}</p>`
+    : "<p>Manual sign-in</p>";
 };
-openRoomInfoBtn.onclick = () => roomInfoModal.style.display = "flex";
+openRoomInfoBtn.onclick = () => {
+  roomInfoModal.style.display = "flex";
+};
 
 document.querySelectorAll(".closeModal").forEach(btn => {
   btn.onclick = () => btn.closest(".modal").style.display = "none";
 });
 
+// THEME SWITCHER
+themeLightBtn.onclick = () => {
+  document.body.classList.remove("theme-dark","theme-blue");
+  document.body.classList.add("theme-light");
+};
+themeDarkBtn.onclick = () => {
+  document.body.classList.remove("theme-light","theme-blue");
+  document.body.classList.add("theme-dark");
+};
+themeBlueBtn.onclick = () => {
+  document.body.classList.remove("theme-light","theme-dark");
+  document.body.classList.add("theme-blue");
+};
+
 // SIGN-IN LOGIC
 signinCreateRoomBtn.onclick = () => {
   const roomName = signinRoomName.value.trim();
   const password = signinRoomPassword.value.trim();
+  const googleOnly = signinGoogleOnly.checked;
+  const googleVerified = signinGoogleVerified.checked;
+
   if (!roomName) {
     signinError.textContent = "Room name required.";
     return;
   }
-  socket.emit("createRoom", { roomName, password });
+  socket.emit("createRoom", { roomName, password, googleOnly, googleVerified });
   socket.once("roomCreated", () => {
     joinRoom(roomName, password);
   });
@@ -149,10 +191,14 @@ signinJoinRoomBtn.onclick = () => {
 function joinRoom(roomName, password) {
   let name = signinName.value.trim() || "Guest";
   let avatar = signinAvatar.value.trim();
+  let googleId = null;
+  let googleEmail = null;
 
   if (window.googleUser) {
     name = window.googleUser.name;
     avatar = window.googleUser.avatar;
+    googleId = window.googleUser.googleId;
+    googleEmail = window.googleUser.email;
   }
 
   socket.emit("joinRoom", {
@@ -160,7 +206,8 @@ function joinRoom(roomName, password) {
     password,
     name,
     avatar,
-    googleId: window.googleUser ? window.googleUser.googleId : null
+    googleId,
+    googleEmail
   });
 }
 
@@ -168,14 +215,16 @@ socket.on("roomError", (msg) => {
   signinError.textContent = msg;
 });
 
-socket.on("joinedRoom", ({ roomName, isHost: hostFlag, yourId }) => {
+socket.on("joinedRoom", ({ roomName, isHost: hostFlag, yourId, googleOnly, googleVerified }) => {
   currentRoomName = roomName;
   mySocketId = yourId;
   isHost = hostFlag;
+  currentRoomFlags.googleOnly = googleOnly;
+  currentRoomFlags.googleVerified = googleVerified;
 
   signinScreen.style.display = "none";
 
-  roomTitle.textContent = `Room: ${roomName}`;
+  roomTitle.textContent = `Room: ${roomName}${googleOnly ? " (Google-only)" : ""}${googleVerified ? " (Google-verified)" : ""}`;
   userStatus.textContent = `You: ${yourId}`;
 
   hostControlsEl.style.display = isHost ? "block" : "none";
@@ -188,6 +237,13 @@ socket.on("roomList", (rooms) => {
   console.log("Rooms:", rooms);
 });
 
+// ROOM FLAGS
+socket.on("roomFlags", ({ googleOnly, googleVerified }) => {
+  currentRoomFlags.googleOnly = googleOnly;
+  currentRoomFlags.googleVerified = googleVerified;
+  roomTitle.textContent = `Room: ${currentRoomName}${googleOnly ? " (Google-only)" : ""}${googleVerified ? " (Google-verified)" : ""}`;
+});
+
 // USER LIST
 socket.on("userList", (users) => {
   usersEl.innerHTML = "";
@@ -195,9 +251,11 @@ socket.on("userList", (users) => {
     const div = document.createElement("div");
     div.className = "userItem";
     const googleTag = u.googleId ? `<span class="googleBadge">Google ✓</span>` : "";
+    const hostTag = id === mySocketId && isHost ? `<span class="hostBadge">HOST</span>` : "";
+    const adminTag = isGlobalAdmin && id === mySocketId ? `<span class="adminBadge">ADMIN</span>` : "";
     div.innerHTML = `
       <img class="avatar" src="${u.avatar}">
-      <span>${u.name} ${googleTag}</span>
+      <span>${u.name} ${hostTag} ${adminTag} ${googleTag}</span>
       <span class="id">${id.slice(0,5)}</span>
       <button onclick="navigator.clipboard.writeText('${id}')">Copy ID</button>
     `;
@@ -206,8 +264,9 @@ socket.on("userList", (users) => {
 
   roomInfoContent.innerHTML = `
     <p>Users: ${Object.keys(users).length}</p>
-    <p>Host: ${Object.entries(users).find(([id]) => id === mySocketId && isHost) ? "You" : "Someone else"}</p>
-    ${window.googleUser ? "<p>You are signed in with Google</p>" : "<p>You are not using Google</p>"}
+    <p>Google-only: ${currentRoomFlags.googleOnly ? "Yes" : "No"}</p>
+    <p>Google-verified: ${currentRoomFlags.googleVerified ? "Yes" : "No"}</p>
+    ${window.googleUser ? `<p>You are signed in with Google: ${window.googleUser.email}</p>` : "<p>You are not using Google</p>"}
   `;
 });
 
@@ -216,8 +275,9 @@ socket.on("chatMessage", (msg) => {
   const div = document.createElement("div");
   div.className = "msg";
   const googleTag = msg.googleId ? `<span class="googleBadge">Google</span>` : "";
+  const emailTag = msg.googleEmail ? ` <span style="font-size:10px;color:#aaa;">${msg.googleEmail}</span>` : "";
   div.innerHTML = `
-    <div class="msg-sender">${msg.from} ${msg.isHost ? "(HOST)" : ""} ${googleTag}</div>
+    <div class="msg-sender">${msg.from} ${msg.isHost ? "(HOST)" : ""} ${googleTag}${emailTag}</div>
     <div>${msg.text}</div>
     <div class="msg-time">${msg.time}</div>
   `;
@@ -233,7 +293,7 @@ socket.on("clearChat", () => {
 
 // ROOM STATUS
 socket.on("roomStatus", ({ locked }) => {
-  roomTitle.textContent = `Room: ${currentRoomName}${locked ? " (Locked)" : ""}`;
+  roomTitle.textContent = `Room: ${currentRoomName}${locked ? " (Locked)" : ""}${currentRoomFlags.googleOnly ? " (Google-only)" : ""}${currentRoomFlags.googleVerified ? " (Google-verified)" : ""}`;
 });
 
 // MUTED / KICKED / BANNED
@@ -312,8 +372,9 @@ socket.on("fileShared", (file) => {
   const div = document.createElement("div");
   div.className = "msg";
   const googleTag = file.googleId ? `<span class="googleBadge">Google</span>` : "";
+  const emailTag = file.googleEmail ? ` <span style="font-size:10px;color:#aaa;">${file.googleEmail}</span>` : "";
   div.innerHTML = `
-    <div class="msg-sender">${file.from} shared a file ${googleTag}</div>
+    <div class="msg-sender">${file.from} shared a file ${googleTag}${emailTag}</div>
     <div><a href="${file.fileUrl}" target="_blank">${file.fileName}</a></div>
     <div class="msg-time">${file.time}</div>
   `;
@@ -358,6 +419,14 @@ changePasswordBtn.onclick = () => {
   const newPass = prompt("New room password (blank for none):");
   socket.emit("hostRoomControl", { action: "changePassword", value: newPass });
 };
+toggleGoogleOnlyBtn.onclick = () => {
+  if (!isHost) return;
+  socket.emit("hostRoomControl", { action: "toggleGoogleOnly" });
+};
+toggleGoogleVerifiedBtn.onclick = () => {
+  if (!isHost) return;
+  socket.emit("hostRoomControl", { action: "toggleGoogleVerified" });
+};
 
 // ADMIN CONTROLS
 makeAdminBtn.onclick = () => {
@@ -390,8 +459,9 @@ sendDMBtn.onclick = () => {
 
 socket.on("dmMessage", (msg) => {
   const googleTag = msg.googleId ? " (Google)" : "";
+  const emailTag = msg.googleEmail ? ` [${msg.googleEmail}]` : "";
   const div = document.createElement("div");
-  div.textContent = `[DM from ${msg.fromName}${googleTag}] ${msg.text} (${msg.time})`;
+  div.textContent = `[DM from ${msg.fromName}${googleTag}${emailTag}] ${msg.text} (${msg.time})`;
   dmMessagesEl.appendChild(div);
 });
 
