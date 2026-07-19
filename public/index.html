@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ChatTy Ultra</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="roomMenu">
+  <h2>ChatTy Ultra</h2>
+
+  <h3>Create Room</h3>
+  <input id="newRoomName" placeholder="Room name">
+  <input id="newRoomPassword" placeholder="Password">
+  <button id="createRoomBtn">Create</button>
+
+  <h3>Join Room</h3>
+  <div id="roomList"></div>
+
+  <input id="joinRoomName" placeholder="Room name">
+  <input id="joinRoomPassword" placeholder="Password">
+  <input id="joinName" placeholder="Your name">
+  <input id="joinAvatar" placeholder="Avatar URL">
+  <button id="joinRoomBtn">Join</button>
+</div>
+
+<div id="chatUI" style="display:none;">
+  <div id="sidebar">
+    <h3>Users</h3>
+    <div id="users"></div>
+
+    <h3>Your Controls</h3>
+    <button id="changeNameBtn">Change Name</button>
+    <button id="changeAvatarBtn">Change Avatar</button>
+    <button id="leaveRoomBtn">Leave Room</button>
+
+    <div id="hostControls" style="display:none;">
+      <h3>Host Controls</h3>
+      <button id="clearChatBtn">Clear Chat</button>
+      <button id="lockRoomBtn">Lock Room</button>
+      <button id="unlockRoomBtn">Unlock Room</button>
+      <button id="changePasswordBtn">Change Password</button>
+    </div>
+  </div>
+
+  <div id="chatArea">
+    <div id="messages"></div>
+    <input id="msgInput" placeholder="Message">
+    <button id="sendBtn">Send</button>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="client.js"></script>
+</body>
+</html>
