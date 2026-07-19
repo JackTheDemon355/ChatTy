@@ -13,13 +13,13 @@ app.use(express.static("public"));
 //     password,
 //     locked,
 //     hostId,
-//     users: { socketId: { name, avatar, muted } },
+//     users: { socketId: { name, avatar, muted, googleId } },
 //     banned: [socketId]
 //   }
 // }
 let rooms = {};
 let globalAdmins = new Set(); // socket IDs
-let profiles = {}; // socketId -> { friends: [socketId], name, avatar }
+let profiles = {}; // socketId -> { friends: [socketId], name, avatar, googleId }
 
 function createRoom(roomName, password) {
   rooms[roomName] = {
@@ -35,7 +35,7 @@ io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
   socket.data.room = null;
 
-  profiles[socket.id] = { friends: [], name: "User", avatar: "" };
+  profiles[socket.id] = { friends: [], name: "User", avatar: "", googleId: null };
 
   // First user becomes global admin
   if (globalAdmins.size === 0) {
@@ -58,7 +58,7 @@ io.on("connection", (socket) => {
   });
 
   // Join room (sign-in + join)
-  socket.on("joinRoom", ({ roomName, password, name, avatar }) => {
+  socket.on("joinRoom", ({ roomName, password, name, avatar, googleId }) => {
     const room = rooms[roomName];
     if (!room) {
       socket.emit("roomError", "Room does not exist");
@@ -86,11 +86,13 @@ io.on("connection", (socket) => {
     room.users[socket.id] = {
       name: userName,
       avatar: userAvatar,
-      muted: false
+      muted: false,
+      googleId: googleId || null
     };
 
     profiles[socket.id].name = userName;
     profiles[socket.id].avatar = userAvatar;
+    profiles[socket.id].googleId = googleId || null;
 
     if (!room.hostId) room.hostId = socket.id;
 
@@ -140,6 +142,7 @@ io.on("connection", (socket) => {
       from: user.name,
       avatar: user.avatar,
       isHost: socket.id === room.hostId,
+      googleId: user.googleId || null,
       text,
       time: new Date().toLocaleTimeString()
     });
@@ -253,6 +256,7 @@ io.on("connection", (socket) => {
     io.to(toId).emit("dmMessage", {
       fromId: socket.id,
       fromName: fromProfile.name,
+      googleId: fromProfile.googleId || null,
       text,
       time: new Date().toLocaleTimeString()
     });
@@ -303,6 +307,7 @@ io.on("connection", (socket) => {
     io.to(roomName).emit("fileShared", {
       from: user.name,
       avatar: user.avatar,
+      googleId: user.googleId || null,
       fileUrl,
       fileName,
       time: new Date().toLocaleTimeString()
