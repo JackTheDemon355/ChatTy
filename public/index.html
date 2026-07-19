@@ -1,22 +1,24 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>ChatTy Ultra</title>
+  <meta charset="UTF-8">
+  <title>ChatTy Ultra+</title>
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="theme-dark">
 
 <div id="roomMenu">
-  <h2>ChatTy Ultra</h2>
+  <h2>ChatTy Ultra+</h2>
 
   <h3>Create Room</h3>
   <input id="newRoomName" placeholder="Room name">
-  <input id="newRoomPassword" placeholder="Password">
+  <input id="newRoomPassword" placeholder="Password (optional)">
   <button id="createRoomBtn">Create</button>
 
-  <h3>Join Room</h3>
+  <h3>Available Rooms</h3>
   <div id="roomList"></div>
 
+  <h3>Join Room</h3>
   <input id="joinRoomName" placeholder="Room name">
   <input id="joinRoomPassword" placeholder="Password">
   <input id="joinName" placeholder="Your name">
@@ -26,7 +28,7 @@
 
 <div id="chatUI" style="display:none;">
   <div id="sidebar">
-    <h3>Users</h3>
+    <h3>Room Users</h3>
     <div id="users"></div>
 
     <h3>Your Controls</h3>
@@ -40,14 +42,73 @@
       <button id="lockRoomBtn">Lock Room</button>
       <button id="unlockRoomBtn">Unlock Room</button>
       <button id="changePasswordBtn">Change Password</button>
+      <p>Per-user:</p>
+      <input id="hostTargetId" placeholder="Target socket ID">
+      <button id="hostMuteBtn">Mute</button>
+      <button id="hostUnmuteBtn">Unmute</button>
+      <button id="hostKickBtn">Kick</button>
+      <button id="hostBanBtn">Ban</button>
+      <button id="hostTransferBtn">Transfer Host</button>
+    </div>
+
+    <div id="extraControls">
+      <h3>DM & Friends</h3>
+      <button id="openDMBtn">Open DM Panel</button>
+      <button id="addFriendBtn">Add Friend (by ID)</button>
+      <button id="removeFriendBtn">Remove Friend (by ID)</button>
+
+      <h3>Theme</h3>
+      <button class="themeBtn" data-theme="light">Light</button>
+      <button class="themeBtn" data-theme="dark">Dark</button>
+      <button class="themeBtn" data-theme="blue">Blue</button>
+
+      <h3>Emoji</h3>
+      <select id="emojiPicker">
+        <option value="">(pick emoji)</option>
+        <option>😀</option>
+        <option>😂</option>
+        <option>😍</option>
+        <option>😎</option>
+        <option>👍</option>
+        <option>🔥</option>
+        <option>🎉</option>
+      </select>
+
+      <h3>Files</h3>
+      <input id="fileUrlInput" placeholder="File URL">
+      <input id="fileNameInput" placeholder="File name">
+      <button id="shareFileBtn">Share File</button>
+
+      <div id="adminControls" style="display:none;">
+        <h3>Global Admin</h3>
+        <input id="adminTargetId" placeholder="Target socket ID">
+        <button id="makeAdminBtn">Make Admin</button>
+        <button id="removeAdminBtn">Remove Admin</button>
+        <button id="globalKickBtn">Global Kick</button>
+      </div>
     </div>
   </div>
 
   <div id="chatArea">
+    <div id="roomInfo">
+      <span id="roomNameLabel"></span>
+      <span id="roomStatusLabel"></span>
+      <span id="yourIdLabel"></span>
+    </div>
     <div id="messages"></div>
-    <input id="msgInput" placeholder="Message">
-    <button id="sendBtn">Send</button>
+    <div id="inputRow">
+      <input id="msgInput" placeholder="Message">
+      <button id="sendBtn">Send</button>
+    </div>
   </div>
+</div>
+
+<div id="dmPanel" style="display:none;">
+  <h3>Direct Messages</h3>
+  <input id="dmTargetId" placeholder="Target socket ID">
+  <input id="dmText" placeholder="Message">
+  <button id="sendDMBtn">Send DM</button>
+  <div id="dmMessages"></div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
