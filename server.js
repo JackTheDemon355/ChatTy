@@ -3,30 +3,101 @@ const app = express();
 const http = require("http").createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(http);
+const session = require("express-session");
+const passport = require("passport");
+const GitHubStrategy = require("passport-github2").Strategy;
+const DiscordStrategy = require("passport-discord").Strategy;
 
 const PORT = process.env.PORT || 3000;
 
 app.use(express.static("public"));
 
-// rooms = {
-//   roomName: {
-//     password,
-//     locked,
-//     hostId,
-//     users: { socketId: { name, avatar, muted, googleId, googleEmail } },
-//     banned: [socketId],
-//     googleOnly: false,
-//     googleVerified: false
-//   }
-// }
+app.use(session({
+  secret: "chatty-ultra-secret",
+  resave: false,
+  saveUninitialized: false
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Simple user store
+let oauthUsers = {}; // id -> { provider, id, username, avatar, email }
+
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser((id, done) => {
+  done(null, oauthUsers[id] || null);
+});
+
+// GitHub OAuth
+passport.use(new GitHubStrategy({
+  clientID: "GITHUB_CLIENT_ID",
+  clientSecret: "GITHUB_CLIENT_SECRET",
+  callbackURL: "/auth/github/callback"
+}, (accessToken, refreshToken, profile, done) => {
+  const user = {
+    id: `github-${profile.id}`,
+    provider: "github",
+    username: profile.username || profile.displayName || "GitHubUser",
+    avatar: profile.photos?.[0]?.value || "https://avatars.githubusercontent.com/u/0?v=4",
+    email: profile.emails?.[0]?.value || null
+  };
+  oauthUsers[user.id] = user;
+  return done(null, user);
+}));
+
+// Discord OAuth
+passport.use(new DiscordStrategy({
+  clientID: "DISCORD_CLIENT_ID",
+  clientSecret: "DISCORD_CLIENT_SECRET",
+  callbackURL: "/auth/discord/callback",
+  scope: ["identify", "email"]
+}, (accessToken, refreshToken, profile, done) => {
+  const user = {
+    id: `discord-${profile.id}`,
+    provider: "discord",
+    username: profile.username || profile.global_name || "DiscordUser",
+    avatar: profile.avatar
+      ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png`
+      : "https://cdn.discordapp.com/embed/avatars/0.png",
+    email: profile.email || null
+  };
+  oauthUsers[user.id] = user;
+  return done(null, user);
+}));
+
+// OAuth routes
+app.get("/auth/github", passport.authenticate("github", { scope: ["user:email"] }));
+app.get("/auth/github/callback",
+  passport.authenticate("github", { failureRedirect: "/" }),
+  (req, res) => {
+    res.redirect("/oauth-success.html");
+  }
+);
+
+app.get("/auth/discord", passport.authenticate("discord"));
+app.get("/auth/discord/callback",
+  passport.authenticate("discord", { failureRedirect: "/" }),
+  (req, res) => {
+    res.redirect("/oauth-success.html");
+  }
+);
+
+app.get("/auth/me", (req, res) => {
+  if (!req.user) return res.json(null);
+  res.json(req.user);
+});
+
+// SOCKET.IO CHAT LOGIC (same as before, optimized layout)
 let rooms = {};
-let globalAdmins = new Set(); // socket IDs
+let globalAdmins = new Set();
 let globalAdminEmails = new Set([
-  // add your Google emails here for auto-admin
   "youremail@example.com"
 ]);
-
-let profiles = {}; // socketId -> { friends: [socketId], name, avatar, googleId, googleEmail }
+let profiles = {};
 
 function createRoom(roomName, password, googleOnly, googleVerified) {
   rooms[roomName] = {
@@ -49,10 +120,13 @@ io.on("connection", (socket) => {
     name: "User",
     avatar: "",
     googleId: null,
-    googleEmail: null
+    googleEmail: null,
+    oauthProvider: null,
+    oauthName: null,
+    oauthAvatar: null,
+    oauthEmail: null
   };
 
-  // First connection becomes global admin (fallback)
   if (globalAdmins.size === 0) {
     globalAdmins.add(socket.id);
     socket.emit("globalAdmin", true);
@@ -60,7 +134,6 @@ io.on("connection", (socket) => {
 
   socket.emit("roomList", Object.keys(rooms));
 
-  // Create room
   socket.on("createRoom", ({ roomName, password, googleOnly, googleVerified }) => {
     if (!roomName) return;
     if (rooms[roomName]) {
@@ -72,8 +145,7 @@ io.on("connection", (socket) => {
     io.emit("roomList", Object.keys(rooms));
   });
 
-  // Join room (sign-in + join)
-  socket.on("joinRoom", ({ roomName, password, name, avatar, googleId, googleEmail }) => {
+  socket.on("joinRoom", ({ roomName, password, name, avatar, googleId, googleEmail, oauth }) => {
     const room = rooms[roomName];
     if (!room) {
       socket.emit("roomError", "Room does not exist");
@@ -91,8 +163,6 @@ io.on("connection", (socket) => {
       socket.emit("roomError", "You are banned from this room");
       return;
     }
-
-    // Google-only access rooms
     if (room.googleOnly && !googleId) {
       socket.emit("roomError", "This room requires Google Sign-In.");
       return;
@@ -109,26 +179,27 @@ io.on("connection", (socket) => {
       avatar: userAvatar,
       muted: false,
       googleId: googleId || null,
-      googleEmail: googleEmail || null
+      googleEmail: googleEmail || null,
+      oauthProvider: oauth?.provider || null,
+      oauthName: oauth?.username || null,
+      oauthAvatar: oauth?.avatar || null,
+      oauthEmail: oauth?.email || null
     };
 
     profiles[socket.id].name = userName;
     profiles[socket.id].avatar = userAvatar;
     profiles[socket.id].googleId = googleId || null;
     profiles[socket.id].googleEmail = googleEmail || null;
+    profiles[socket.id].oauthProvider = oauth?.provider || null;
+    profiles[socket.id].oauthName = oauth?.username || null;
+    profiles[socket.id].oauthAvatar = oauth?.avatar || null;
+    profiles[socket.id].oauthEmail = oauth?.email || null;
 
-    // Host assignment
     if (!room.hostId) room.hostId = socket.id;
 
-    // Google-based admin roles (by email)
     if (googleEmail && globalAdminEmails.has(googleEmail)) {
       globalAdmins.add(socket.id);
       socket.emit("globalAdmin", true);
-    }
-
-    // Google-verified rooms: mark if host has Google
-    if (room.googleVerified && !profiles[room.hostId]?.googleId) {
-      room.googleVerified = false; // fallback if host not Google
     }
 
     socket.emit("joinedRoom", {
@@ -142,11 +213,9 @@ io.on("connection", (socket) => {
     io.to(roomName).emit("userList", room.users);
   });
 
-  // Leave room
   socket.on("leaveRoom", () => {
     const roomName = socket.data.room;
     if (!roomName) return;
-
     const room = rooms[roomName];
     if (!room) return;
 
@@ -157,19 +226,15 @@ io.on("connection", (socket) => {
     if (socket.id === room.hostId) {
       const remaining = Object.keys(room.users);
       room.hostId = remaining[0] || null;
-      if (room.hostId) {
-        io.to(room.hostId).emit("hostStatus", true);
-      }
+      if (room.hostId) io.to(room.hostId).emit("hostStatus", true);
     }
 
     io.to(roomName).emit("userList", room.users);
   });
 
-  // Chat message
   socket.on("sendMessage", (text) => {
     const roomName = socket.data.room;
     if (!roomName) return;
-
     const room = rooms[roomName];
     const user = room.users[socket.id];
     if (!user || user.muted) return;
@@ -181,12 +246,14 @@ io.on("connection", (socket) => {
       isHost: socket.id === room.hostId,
       googleId: user.googleId || null,
       googleEmail: user.googleEmail || null,
+      oauthProvider: user.oauthProvider || null,
+      oauthName: user.oauthName || null,
+      oauthEmail: user.oauthEmail || null,
       text,
       time: new Date().toLocaleTimeString()
     });
   });
 
-  // Typing indicator
   socket.on("typing", () => {
     const roomName = socket.data.room;
     if (!roomName) return;
@@ -196,38 +263,31 @@ io.on("connection", (socket) => {
     io.to(roomName).emit("typing", user.name);
   });
 
-  // Guest: change name
   socket.on("changeName", (newName) => {
     const roomName = socket.data.room;
     if (!roomName || !newName) return;
     const room = rooms[roomName];
     if (!room.users[socket.id]) return;
-
     room.users[socket.id].name = newName;
     profiles[socket.id].name = newName;
     io.to(roomName).emit("userList", room.users);
   });
 
-  // Guest: change avatar
   socket.on("changeAvatar", (newAvatar) => {
     const roomName = socket.data.room;
     if (!roomName || !newAvatar) return;
     const room = rooms[roomName];
     if (!room.users[socket.id]) return;
-
     room.users[socket.id].avatar = newAvatar;
     profiles[socket.id].avatar = newAvatar;
     io.to(roomName).emit("userList", room.users);
   });
 
-  // Host actions on users
   socket.on("hostAction", ({ action, targetId }) => {
     const roomName = socket.data.room;
     if (!roomName) return;
-
     const room = rooms[roomName];
     if (!room || socket.id !== room.hostId) return;
-
     const targetUser = room.users[targetId];
     if (!targetUser) return;
 
@@ -260,11 +320,9 @@ io.on("connection", (socket) => {
     io.to(roomName).emit("userList", room.users);
   });
 
-  // Host room controls
   socket.on("hostRoomControl", ({ action, value }) => {
     const roomName = socket.data.room;
     if (!roomName) return;
-
     const room = rooms[roomName];
     if (!room || socket.id !== room.hostId) return;
 
@@ -300,22 +358,22 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Direct messages
   socket.on("sendDM", ({ toId, text }) => {
     const fromProfile = profiles[socket.id];
     if (!fromProfile || !toId || !text) return;
-
     io.to(toId).emit("dmMessage", {
       fromId: socket.id,
       fromName: fromProfile.name,
       googleId: fromProfile.googleId || null,
       googleEmail: fromProfile.googleEmail || null,
+      oauthProvider: fromProfile.oauthProvider || null,
+      oauthName: fromProfile.oauthName || null,
+      oauthEmail: fromProfile.oauthEmail || null,
       text,
       time: new Date().toLocaleTimeString()
     });
   });
 
-  // Friends system
   socket.on("addFriend", (targetId) => {
     if (!profiles[socket.id] || !profiles[targetId]) return;
     if (!profiles[socket.id].friends.includes(targetId)) {
@@ -330,10 +388,8 @@ io.on("connection", (socket) => {
     socket.emit("friendsList", profiles[socket.id].friends);
   });
 
-  // Global admin actions
   socket.on("globalAdminAction", ({ action, targetId }) => {
     if (!globalAdmins.has(socket.id)) return;
-
     switch (action) {
       case "makeAdmin":
         globalAdmins.add(targetId);
@@ -350,25 +406,25 @@ io.on("connection", (socket) => {
     }
   });
 
-  // File sharing (URL-based)
   socket.on("shareFile", ({ roomName, fileUrl, fileName }) => {
     const room = rooms[roomName];
     if (!room) return;
     const user = room.users[socket.id];
     if (!user || !fileUrl || !fileName) return;
-
     io.to(roomName).emit("fileShared", {
       from: user.name,
       avatar: user.avatar,
       googleId: user.googleId || null,
       googleEmail: user.googleEmail || null,
+      oauthProvider: user.oauthProvider || null,
+      oauthName: user.oauthName || null,
+      oauthEmail: user.oauthEmail || null,
       fileUrl,
       fileName,
       time: new Date().toLocaleTimeString()
     });
   });
 
-  // WebRTC signaling stub (for future voice/video)
   socket.on("rtcSignal", ({ toId, data }) => {
     io.to(toId).emit("rtcSignal", {
       fromId: socket.id,
@@ -376,24 +432,18 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Disconnect
   socket.on("disconnect", () => {
     const roomName = socket.data.room;
     if (roomName && rooms[roomName]) {
       const room = rooms[roomName];
       delete room.users[socket.id];
-
       if (socket.id === room.hostId) {
         const remaining = Object.keys(room.users);
         room.hostId = remaining[0] || null;
-        if (room.hostId) {
-          io.to(room.hostId).emit("hostStatus", true);
-        }
+        if (room.hostId) io.to(room.hostId).emit("hostStatus", true);
       }
-
       io.to(roomName).emit("userList", room.users);
     }
-
     delete profiles[socket.id];
     globalAdmins.delete(socket.id);
     console.log("Disconnected:", socket.id);
