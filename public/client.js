@@ -1,6 +1,6 @@
 const socket = io();
 
-// SIGN-IN ELEMENTS
+// ELEMENTS
 const signinScreen = document.getElementById("signinScreen");
 const signinName = document.getElementById("signinName");
 const signinAvatar = document.getElementById("signinAvatar");
@@ -12,15 +12,15 @@ const signinCreateRoomBtn = document.getElementById("signinCreateRoomBtn");
 const signinJoinRoomBtn = document.getElementById("signinJoinRoomBtn");
 const signinSignOutBtn = document.getElementById("signinSignOutBtn");
 const signinError = document.getElementById("signinError");
+const githubBtn = document.getElementById("githubBtn");
+const discordBtn = document.getElementById("discordBtn");
 
-// TOP/BOTTOM
 const roomTitle = document.getElementById("roomTitle");
 const userStatus = document.getElementById("userStatus");
 const messagesEl = document.getElementById("messages");
 const msgInput = document.getElementById("msgInput");
 const sendBtn = document.getElementById("sendBtn");
 
-// DRAWERS & MODALS
 const userDrawer = document.getElementById("userDrawer");
 const dmDrawer = document.getElementById("dmDrawer");
 const profileModal = document.getElementById("profileModal");
@@ -33,7 +33,6 @@ const openRoomInfoBtn = document.getElementById("openRoomInfoBtn");
 
 const usersEl = document.getElementById("users");
 
-// Host controls
 const hostControlsEl = document.getElementById("hostControls");
 const hostTargetId = document.getElementById("hostTargetId");
 const hostMuteBtn = document.getElementById("hostMuteBtn");
@@ -48,14 +47,12 @@ const changePasswordBtn = document.getElementById("changePasswordBtn");
 const toggleGoogleOnlyBtn = document.getElementById("toggleGoogleOnlyBtn");
 const toggleGoogleVerifiedBtn = document.getElementById("toggleGoogleVerifiedBtn");
 
-// Admin controls
 const adminControlsEl = document.getElementById("adminControls");
 const adminTargetId = document.getElementById("adminTargetId");
 const makeAdminBtn = document.getElementById("makeAdminBtn");
 const removeAdminBtn = document.getElementById("removeAdminBtn");
 const globalKickBtn = document.getElementById("globalKickBtn");
 
-// DM & friends
 const dmTargetId = document.getElementById("dmTargetId");
 const dmText = document.getElementById("dmText");
 const sendDMBtn = document.getElementById("sendDMBtn");
@@ -63,20 +60,16 @@ const dmMessagesEl = document.getElementById("dmMessages");
 const addFriendBtn = document.getElementById("addFriendBtn");
 const removeFriendBtn = document.getElementById("removeFriendBtn");
 
-// Profile modal
 const profileName = document.getElementById("profileName");
 const profileAvatar = document.getElementById("profileAvatar");
 const saveProfileBtn = document.getElementById("saveProfileBtn");
 const profileInfo = document.getElementById("profileInfo");
 
-// Room info modal
 const roomInfoContent = document.getElementById("roomInfoContent");
 
-// Emoji & file
 const emojiBtn = document.getElementById("emojiBtn");
 const fileBtn = document.getElementById("fileBtn");
 
-// Theme buttons
 const themeLightBtn = document.getElementById("themeLightBtn");
 const themeDarkBtn = document.getElementById("themeDarkBtn");
 const themeBlueBtn = document.getElementById("themeBlueBtn");
@@ -88,19 +81,34 @@ let isHost = false;
 let isGlobalAdmin = false;
 let currentRoomFlags = { googleOnly: false, googleVerified: false };
 window.googleUser = null;
+window.oauthUser = null;
 
-// GOOGLE SIGN-IN INIT
-window.onload = function () {
+// GOOGLE SIGN-IN
+window.onload = async function () {
+  // Google
   if (window.google && google.accounts && google.accounts.id) {
     google.accounts.id.initialize({
-      client_id: "37880690107-orfv60c36b5f5qh0d9sm7cr6ncn2kq21.apps.googleusercontent.com",
+      client_id: "YOUR_GOOGLE_CLIENT_ID_HERE",
       callback: handleGoogleLogin
     });
-
     google.accounts.id.renderButton(
       document.getElementById("googleBtn"),
       { theme: "outline", size: "large" }
     );
+  }
+
+  // GitHub/Discord OAuth profile
+  try {
+    const res = await fetch("/auth/me");
+    const data = await res.json();
+    if (data) {
+      window.oauthUser = data;
+      signinName.value = data.username;
+      signinAvatar.value = data.avatar;
+      profileInfo.innerHTML = `<p>Signed in with ${data.provider}: ${data.email || "no email"}</p>`;
+    }
+  } catch (e) {
+    console.log("No OAuth user");
   }
 };
 
@@ -112,32 +120,43 @@ function handleGoogleLogin(response) {
     email: data.email,
     googleId: data.sub
   };
-  // Google profile syncing + avatar auto-refresh
   signinName.value = data.name;
   signinAvatar.value = data.picture;
   profileInfo.innerHTML = `<p>Signed in with Google: ${data.email}</p>`;
 }
 
-// Multi-account switching: sign out
+// OAuth buttons
+githubBtn.onclick = () => {
+  window.location.href = "/auth/github";
+};
+discordBtn.onclick = () => {
+  window.location.href = "/auth/discord";
+};
+
 signinSignOutBtn.onclick = () => {
   window.googleUser = null;
+  window.oauthUser = null;
   signinName.value = "";
   signinAvatar.value = "";
   profileInfo.innerHTML = "<p>Manual sign-in</p>";
 };
 
-// DRAWER TOGGLES
+// DRAWERS
 openUsersBtn.onclick = () => userDrawer.classList.toggle("open");
 openDMsBtn.onclick = () => dmDrawer.classList.toggle("open");
 
-// MODAL TOGGLES
+// MODALS
 openProfileBtn.onclick = () => {
   profileModal.style.display = "flex";
   profileName.value = signinName.value.trim();
   profileAvatar.value = signinAvatar.value.trim();
-  profileInfo.innerHTML = window.googleUser
-    ? `<p>Signed in with Google: ${window.googleUser.email}</p>`
-    : "<p>Manual sign-in</p>";
+  if (window.googleUser) {
+    profileInfo.innerHTML = `<p>Google: ${window.googleUser.email}</p>`;
+  } else if (window.oauthUser) {
+    profileInfo.innerHTML = `<p>${window.oauthUser.provider}: ${window.oauthUser.email || "no email"}</p>`;
+  } else {
+    profileInfo.innerHTML = "<p>Manual sign-in</p>";
+  }
 };
 openRoomInfoBtn.onclick = () => {
   roomInfoModal.style.display = "flex";
@@ -147,7 +166,7 @@ document.querySelectorAll(".closeModal").forEach(btn => {
   btn.onclick = () => btn.closest(".modal").style.display = "none";
 });
 
-// THEME SWITCHER
+// THEMES
 themeLightBtn.onclick = () => {
   document.body.classList.remove("theme-dark","theme-blue");
   document.body.classList.add("theme-light");
@@ -161,13 +180,12 @@ themeBlueBtn.onclick = () => {
   document.body.classList.add("theme-blue");
 };
 
-// SIGN-IN LOGIC
+// SIGN-IN
 signinCreateRoomBtn.onclick = () => {
   const roomName = signinRoomName.value.trim();
   const password = signinRoomPassword.value.trim();
   const googleOnly = signinGoogleOnly.checked;
   const googleVerified = signinGoogleVerified.checked;
-
   if (!roomName) {
     signinError.textContent = "Room name required.";
     return;
@@ -193,6 +211,7 @@ function joinRoom(roomName, password) {
   let avatar = signinAvatar.value.trim();
   let googleId = null;
   let googleEmail = null;
+  let oauth = null;
 
   if (window.googleUser) {
     name = window.googleUser.name;
@@ -201,13 +220,20 @@ function joinRoom(roomName, password) {
     googleEmail = window.googleUser.email;
   }
 
+  if (window.oauthUser) {
+    name = window.oauthUser.username;
+    avatar = window.oauthUser.avatar;
+    oauth = window.oauthUser;
+  }
+
   socket.emit("joinRoom", {
     roomName,
     password,
     name,
     avatar,
     googleId,
-    googleEmail
+    googleEmail,
+    oauth
   });
 }
 
@@ -232,19 +258,12 @@ socket.on("joinedRoom", ({ roomName, isHost: hostFlag, yourId, googleOnly, googl
   addSystemMessage(`Joined room ${roomName}${isHost ? " as HOST" : ""}`);
 });
 
-// ROOM LIST (optional)
-socket.on("roomList", (rooms) => {
-  console.log("Rooms:", rooms);
-});
-
-// ROOM FLAGS
 socket.on("roomFlags", ({ googleOnly, googleVerified }) => {
   currentRoomFlags.googleOnly = googleOnly;
   currentRoomFlags.googleVerified = googleVerified;
   roomTitle.textContent = `Room: ${currentRoomName}${googleOnly ? " (Google-only)" : ""}${googleVerified ? " (Google-verified)" : ""}`;
 });
 
-// USER LIST
 socket.on("userList", (users) => {
   usersEl.innerHTML = "";
   Object.entries(users).forEach(([id, u]) => {
@@ -253,9 +272,10 @@ socket.on("userList", (users) => {
     const googleTag = u.googleId ? `<span class="googleBadge">Google ✓</span>` : "";
     const hostTag = id === mySocketId && isHost ? `<span class="hostBadge">HOST</span>` : "";
     const adminTag = isGlobalAdmin && id === mySocketId ? `<span class="adminBadge">ADMIN</span>` : "";
+    const oauthTag = u.oauthProvider ? `<span class="googleBadge">${u.oauthProvider}</span>` : "";
     div.innerHTML = `
       <img class="avatar" src="${u.avatar}">
-      <span>${u.name} ${hostTag} ${adminTag} ${googleTag}</span>
+      <span>${u.name} ${hostTag} ${adminTag} ${googleTag} ${oauthTag}</span>
       <span class="id">${id.slice(0,5)}</span>
       <button onclick="navigator.clipboard.writeText('${id}')">Copy ID</button>
     `;
@@ -266,18 +286,20 @@ socket.on("userList", (users) => {
     <p>Users: ${Object.keys(users).length}</p>
     <p>Google-only: ${currentRoomFlags.googleOnly ? "Yes" : "No"}</p>
     <p>Google-verified: ${currentRoomFlags.googleVerified ? "Yes" : "No"}</p>
-    ${window.googleUser ? `<p>You are signed in with Google: ${window.googleUser.email}</p>` : "<p>You are not using Google</p>"}
+    ${window.googleUser ? `<p>Google: ${window.googleUser.email}</p>` : ""}
+    ${window.oauthUser ? `<p>${window.oauthUser.provider}: ${window.oauthUser.email || "no email"}</p>` : ""}
   `;
 });
 
-// CHAT MESSAGE
 socket.on("chatMessage", (msg) => {
   const div = document.createElement("div");
   div.className = "msg";
   const googleTag = msg.googleId ? `<span class="googleBadge">Google</span>` : "";
   const emailTag = msg.googleEmail ? ` <span style="font-size:10px;color:#aaa;">${msg.googleEmail}</span>` : "";
+  const oauthTag = msg.oauthProvider ? `<span class="googleBadge">${msg.oauthProvider}</span>` : "";
+  const oauthEmailTag = msg.oauthEmail ? ` <span style="font-size:10px;color:#aaa;">${msg.oauthEmail}</span>` : "";
   div.innerHTML = `
-    <div class="msg-sender">${msg.from} ${msg.isHost ? "(HOST)" : ""} ${googleTag}${emailTag}</div>
+    <div class="msg-sender">${msg.from} ${msg.isHost ? "(HOST)" : ""} ${googleTag}${emailTag} ${oauthTag}${oauthEmailTag}</div>
     <div>${msg.text}</div>
     <div class="msg-time">${msg.time}</div>
   `;
@@ -285,18 +307,15 @@ socket.on("chatMessage", (msg) => {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 });
 
-// CLEAR CHAT
 socket.on("clearChat", () => {
   messagesEl.innerHTML = "";
   addSystemMessage("Host cleared the chat.");
 });
 
-// ROOM STATUS
 socket.on("roomStatus", ({ locked }) => {
   roomTitle.textContent = `Room: ${currentRoomName}${locked ? " (Locked)" : ""}${currentRoomFlags.googleOnly ? " (Google-only)" : ""}${currentRoomFlags.googleVerified ? " (Google-verified)" : ""}`;
 });
 
-// MUTED / KICKED / BANNED
 socket.on("muted", (status) => {
   addSystemMessage(status ? "You have been muted by the host." : "You have been unmuted by the host.");
 });
@@ -307,14 +326,12 @@ socket.on("banned", () => {
   addSystemMessage("You were banned by the host.");
 });
 
-// HOST STATUS
 socket.on("hostStatus", (status) => {
   isHost = status;
   hostControlsEl.style.display = status ? "block" : "none";
   addSystemMessage(status ? "You are now the host." : "You are no longer the host.");
 });
 
-// GLOBAL ADMIN
 socket.on("globalAdmin", (status) => {
   isGlobalAdmin = status;
   adminControlsEl.style.display = status ? "block" : "none";
@@ -338,7 +355,6 @@ msgInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") sendBtn.click();
 });
 
-// TYPING
 msgInput.addEventListener("input", () => {
   socket.emit("typing");
 });
@@ -350,7 +366,7 @@ socket.on("typing", (name) => {
   }, 1500);
 });
 
-// EMOJI (simple)
+// EMOJI
 emojiBtn.onclick = () => {
   const emoji = prompt("Enter emoji:");
   if (emoji) msgInput.value += " " + emoji;
@@ -373,8 +389,10 @@ socket.on("fileShared", (file) => {
   div.className = "msg";
   const googleTag = file.googleId ? `<span class="googleBadge">Google</span>` : "";
   const emailTag = file.googleEmail ? ` <span style="font-size:10px;color:#aaa;">${file.googleEmail}</span>` : "";
+  const oauthTag = file.oauthProvider ? `<span class="googleBadge">${file.oauthProvider}</span>` : "";
+  const oauthEmailTag = file.oauthEmail ? ` <span style="font-size:10px;color:#aaa;">${file.oauthEmail}</span>` : "";
   div.innerHTML = `
-    <div class="msg-sender">${file.from} shared a file ${googleTag}${emailTag}</div>
+    <div class="msg-sender">${file.from} shared a file ${googleTag}${emailTag} ${oauthTag}${oauthEmailTag}</div>
     <div><a href="${file.fileUrl}" target="_blank">${file.fileName}</a></div>
     <div class="msg-time">${file.time}</div>
   `;
@@ -460,8 +478,10 @@ sendDMBtn.onclick = () => {
 socket.on("dmMessage", (msg) => {
   const googleTag = msg.googleId ? " (Google)" : "";
   const emailTag = msg.googleEmail ? ` [${msg.googleEmail}]` : "";
+  const oauthTag = msg.oauthProvider ? ` (${msg.oauthProvider})` : "";
+  const oauthEmailTag = msg.oauthEmail ? ` [${msg.oauthEmail}]` : "";
   const div = document.createElement("div");
-  div.textContent = `[DM from ${msg.fromName}${googleTag}${emailTag}] ${msg.text} (${msg.time})`;
+  div.textContent = `[DM from ${msg.fromName}${googleTag}${emailTag}${oauthTag}${oauthEmailTag}] ${msg.text} (${msg.time})`;
   dmMessagesEl.appendChild(div);
 });
 
@@ -488,7 +508,7 @@ saveProfileBtn.onclick = () => {
   profileModal.style.display = "none";
 };
 
-// WEBRTC SIGNAL STUB
+// RTC stub
 socket.on("rtcSignal", ({ fromId, data }) => {
   console.log("RTC signal from", fromId, data);
 });
