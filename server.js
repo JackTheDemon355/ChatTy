@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const app = express();
 const http = require("http").createServer(app);
@@ -13,7 +14,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.static("public"));
 
 app.use(session({
-  secret: "chatty-ultra-secret",
+  secret: process.env.SESSION_SECRET || "chatty-ultra-secret",
   resave: false,
   saveUninitialized: false
 }));
@@ -21,7 +22,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Simple user store
+// Store OAuth users
 let oauthUsers = {}; // id -> { provider, id, username, avatar, email }
 
 passport.serializeUser((user, done) => {
@@ -32,11 +33,13 @@ passport.deserializeUser((id, done) => {
   done(null, oauthUsers[id] || null);
 });
 
-// GitHub OAuth
+/* -----------------------------
+   GITHUB OAUTH
+----------------------------- */
 passport.use(new GitHubStrategy({
-  clientID: "GITHUB_CLIENT_ID",
-  clientSecret: "GITHUB_CLIENT_SECRET",
-  callbackURL: "/auth/github/callback"
+  clientID: process.env.GITHUB_CLIENT_ID,
+  clientSecret: process.env.GITHUB_CLIENT_SECRET,
+  callbackURL: process.env.GITHUB_CALLBACK_URL
 }, (accessToken, refreshToken, profile, done) => {
   const user = {
     id: `github-${profile.id}`,
@@ -49,11 +52,13 @@ passport.use(new GitHubStrategy({
   return done(null, user);
 }));
 
-// Discord OAuth
+/* -----------------------------
+   DISCORD OAUTH
+----------------------------- */
 passport.use(new DiscordStrategy({
-  clientID: "DISCORD_CLIENT_ID",
-  clientSecret: "DISCORD_CLIENT_SECRET",
-  callbackURL: "/auth/discord/callback",
+  clientID: process.env.DISCORD_CLIENT_ID,
+  clientSecret: process.env.DISCORD_CLIENT_SECRET,
+  callbackURL: process.env.DISCORD_CALLBACK_URL,
   scope: ["identify", "email"]
 }, (accessToken, refreshToken, profile, done) => {
   const user = {
@@ -69,34 +74,35 @@ passport.use(new DiscordStrategy({
   return done(null, user);
 }));
 
-// OAuth routes
+/* -----------------------------
+   OAUTH ROUTES
+----------------------------- */
 app.get("/auth/github", passport.authenticate("github", { scope: ["user:email"] }));
 app.get("/auth/github/callback",
   passport.authenticate("github", { failureRedirect: "/" }),
-  (req, res) => {
-    res.redirect("/oauth-success.html");
-  }
+  (req, res) => res.redirect("/oauth-success.html")
 );
 
 app.get("/auth/discord", passport.authenticate("discord"));
 app.get("/auth/discord/callback",
   passport.authenticate("discord", { failureRedirect: "/" }),
-  (req, res) => {
-    res.redirect("/oauth-success.html");
-  }
+  (req, res) => res.redirect("/oauth-success.html")
 );
 
 app.get("/auth/me", (req, res) => {
-  if (!req.user) return res.json(null);
-  res.json(req.user);
+  res.json(req.user || null);
 });
 
-// SOCKET.IO CHAT LOGIC (same as before, optimized layout)
+/* -----------------------------
+   CHATTY ULTRA+ SOCKET LOGIC
+----------------------------- */
+
 let rooms = {};
 let globalAdmins = new Set();
 let globalAdminEmails = new Set([
-  "youremail@example.com"
+  process.env.GLOBAL_ADMIN_EMAIL || "example@example.com"
 ]);
+
 let profiles = {};
 
 function createRoom(roomName, password, googleOnly, googleVerified) {
@@ -147,25 +153,13 @@ io.on("connection", (socket) => {
 
   socket.on("joinRoom", ({ roomName, password, name, avatar, googleId, googleEmail, oauth }) => {
     const room = rooms[roomName];
-    if (!room) {
-      socket.emit("roomError", "Room does not exist");
-      return;
-    }
-    if (room.locked) {
-      socket.emit("roomError", "Room is locked");
-      return;
-    }
-    if (room.password !== (password || "")) {
-      socket.emit("roomError", "Incorrect password");
-      return;
-    }
-    if (room.banned.includes(socket.id)) {
-      socket.emit("roomError", "You are banned from this room");
-      return;
-    }
+    if (!room) return socket.emit("roomError", "Room does not exist");
+    if (room.locked) return socket.emit("roomError", "Room is locked");
+    if (room.password !== (password || "")) return socket.emit("roomError", "Incorrect password");
+    if (room.banned.includes(socket.id)) return socket.emit("roomError", "You are banned");
+
     if (room.googleOnly && !googleId) {
-      socket.emit("roomError", "This room requires Google Sign-In.");
-      return;
+      return socket.emit("roomError", "This room requires Google Sign-In.");
     }
 
     socket.join(roomName);
@@ -186,14 +180,17 @@ io.on("connection", (socket) => {
       oauthEmail: oauth?.email || null
     };
 
-    profiles[socket.id].name = userName;
-    profiles[socket.id].avatar = userAvatar;
-    profiles[socket.id].googleId = googleId || null;
-    profiles[socket.id].googleEmail = googleEmail || null;
-    profiles[socket.id].oauthProvider = oauth?.provider || null;
-    profiles[socket.id].oauthName = oauth?.username || null;
-    profiles[socket.id].oauthAvatar = oauth?.avatar || null;
-    profiles[socket.id].oauthEmail = oauth?.email || null;
+    profiles[socket.id] = {
+      ...profiles[socket.id],
+      name: userName,
+      avatar: userAvatar,
+      googleId,
+      googleEmail,
+      oauthProvider: oauth?.provider || null,
+      oauthName: oauth?.username || null,
+      oauthAvatar: oauth?.avatar || null,
+      oauthEmail: oauth?.email || null
+    };
 
     if (!room.hostId) room.hostId = socket.id;
 
@@ -244,11 +241,11 @@ io.on("connection", (socket) => {
       from: user.name,
       avatar: user.avatar,
       isHost: socket.id === room.hostId,
-      googleId: user.googleId || null,
-      googleEmail: user.googleEmail || null,
-      oauthProvider: user.oauthProvider || null,
-      oauthName: user.oauthName || null,
-      oauthEmail: user.oauthEmail || null,
+      googleId: user.googleId,
+      googleEmail: user.googleEmail,
+      oauthProvider: user.oauthProvider,
+      oauthName: user.oauthName,
+      oauthEmail: user.oauthEmail,
       text,
       time: new Date().toLocaleTimeString()
     });
@@ -364,11 +361,11 @@ io.on("connection", (socket) => {
     io.to(toId).emit("dmMessage", {
       fromId: socket.id,
       fromName: fromProfile.name,
-      googleId: fromProfile.googleId || null,
-      googleEmail: fromProfile.googleEmail || null,
-      oauthProvider: fromProfile.oauthProvider || null,
-      oauthName: fromProfile.oauthName || null,
-      oauthEmail: fromProfile.oauthEmail || null,
+      googleId: fromProfile.googleId,
+      googleEmail: fromProfile.googleEmail,
+      oauthProvider: fromProfile.oauthProvider,
+      oauthName: fromProfile.oauthName,
+      oauthEmail: fromProfile.oauthEmail,
       text,
       time: new Date().toLocaleTimeString()
     });
@@ -414,11 +411,11 @@ io.on("connection", (socket) => {
     io.to(roomName).emit("fileShared", {
       from: user.name,
       avatar: user.avatar,
-      googleId: user.googleId || null,
-      googleEmail: user.googleEmail || null,
-      oauthProvider: user.oauthProvider || null,
-      oauthName: user.oauthName || null,
-      oauthEmail: user.oauthEmail || null,
+      googleId: user.googleId,
+      googleEmail: user.googleEmail,
+      oauthProvider: user.oauthProvider,
+      oauthName: user.oauthName,
+      oauthEmail: user.oauthEmail,
       fileUrl,
       fileName,
       time: new Date().toLocaleTimeString()
