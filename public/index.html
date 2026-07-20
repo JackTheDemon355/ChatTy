@@ -10,119 +10,138 @@
 </head>
 <body class="theme-dark">
 
-<!-- SIGN-IN SCREEN -->
-<div id="signinScreen">
-  <div id="signinBox">
-    <h2>Sign in to ChatTy Ultra+</h2>
-    <input id="signinName" placeholder="Your name">
-    <input id="signinAvatar" placeholder="Avatar URL (optional)">
-    <input id="signinRoomName" placeholder="Room name">
-    <input id="signinRoomPassword" placeholder="Room password (optional)">
-    <label>
-      <input type="checkbox" id="signinGoogleOnly"> Google-only room
-    </label>
-    <label>
-      <input type="checkbox" id="signinGoogleVerified"> Google-verified room
-    </label>
-    <button id="signinCreateRoomBtn">Create Room & Join</button>
-    <button id="signinJoinRoomBtn">Join Room</button>
-    <button id="signinSignOutBtn">Sign out Google</button>
-    <div id="signinError"></div>
+<div id="appContainer">
+  <!-- SIGN-IN OVERLAY -->
+  <div id="signinScreen">
+    <div id="signinBox">
+      <h2>Sign in to ChatTy Ultra+</h2>
 
-    <h3>Or</h3>
-    <div id="googleBtn"></div>
-  </div>
-</div>
+      <div class="signinRow">
+        <input id="signinName" placeholder="Your name">
+      </div>
+      <div class="signinRow">
+        <input id="signinAvatar" placeholder="Avatar URL (optional)">
+      </div>
+      <div class="signinRow">
+        <input id="signinRoomName" placeholder="Room name">
+      </div>
+      <div class="signinRow">
+        <input id="signinRoomPassword" placeholder="Room password (optional)">
+      </div>
 
-<!-- TOP BAR -->
-<div id="topBar">
-  <div id="roomTitle"></div>
-  <div id="userStatus"></div>
-  <div id="topButtons">
-    <button id="openUsersBtn">Users</button>
-    <button id="openDMsBtn">DMs</button>
-    <button id="openRoomInfoBtn">Room Info</button>
-    <button id="openProfileBtn">Profile</button>
-    <button id="themeLightBtn">Light</button>
-    <button id="themeDarkBtn">Dark</button>
-    <button id="themeBlueBtn">Blue</button>
-  </div>
-</div>
+      <div class="signinRow checkboxRow">
+        <label><input type="checkbox" id="signinGoogleOnly"> Google-only room</label>
+        <label><input type="checkbox" id="signinGoogleVerified"> Google-verified room</label>
+      </div>
 
-<!-- MAIN CHAT AREA -->
-<div id="chatArea">
-  <div id="messages"></div>
-</div>
+      <button id="signinCreateRoomBtn">Create Room & Join</button>
+      <button id="signinJoinRoomBtn">Join Room</button>
 
-<!-- BOTTOM BAR -->
-<div id="bottomBar">
-  <button id="emojiBtn">😀</button>
-  <button id="fileBtn">📎</button>
-  <input id="msgInput" placeholder="Message">
-  <button id="sendBtn">Send</button>
-</div>
+      <div id="signinError"></div>
 
-<!-- RIGHT DRAWER: USER LIST -->
-<div id="userDrawer" class="drawer">
-  <h3>Users</h3>
-  <div id="users"></div>
+      <h3>Sign in with</h3>
+      <div class="oauthButtons">
+        <div id="googleBtn"></div>
+        <button id="githubBtn">GitHub</button>
+        <button id="discordBtn">Discord</button>
+      </div>
 
-  <h4>Host Controls</h4>
-  <div id="hostControls">
-    <input id="hostTargetId" placeholder="Target socket ID">
-    <button id="hostMuteBtn">Mute</button>
-    <button id="hostUnmuteBtn">Unmute</button>
-    <button id="hostKickBtn">Kick</button>
-    <button id="hostBanBtn">Ban</button>
-    <button id="hostTransferBtn">Transfer Host</button>
-    <button id="clearChatBtn">Clear Chat</button>
-    <button id="lockRoomBtn">Lock Room</button>
-    <button id="unlockRoomBtn">Unlock Room</button>
-    <button id="changePasswordBtn">Change Password</button>
-    <button id="toggleGoogleOnlyBtn">Toggle Google-only</button>
-    <button id="toggleGoogleVerifiedBtn">Toggle Google-verified</button>
+      <button id="signinSignOutBtn">Sign out OAuth</button>
+    </div>
   </div>
 
-  <h4>Global Admin</h4>
-  <div id="adminControls">
-    <input id="adminTargetId" placeholder="Target socket ID">
-    <button id="makeAdminBtn">Make Admin</button>
-    <button id="removeAdminBtn">Remove Admin</button>
-    <button id="globalKickBtn">Global Kick</button>
+  <!-- TOP BAR -->
+  <div id="topBar">
+    <div id="roomTitle"></div>
+    <div id="userStatus"></div>
+    <div id="topButtons">
+      <button id="openUsersBtn">Users</button>
+      <button id="openDMsBtn">DMs</button>
+      <button id="openRoomInfoBtn">Room Info</button>
+      <button id="openProfileBtn">Profile</button>
+      <button id="themeLightBtn">Light</button>
+      <button id="themeDarkBtn">Dark</button>
+      <button id="themeBlueBtn">Blue</button>
+    </div>
   </div>
-</div>
 
-<!-- LEFT DRAWER: DM PANEL -->
-<div id="dmDrawer" class="drawer left">
-  <h3>Direct Messages</h3>
-  <input id="dmTargetId" placeholder="Target ID">
-  <input id="dmText" placeholder="Message">
-  <button id="sendDMBtn">Send DM</button>
-  <div id="dmMessages"></div>
-
-  <h4>Friends</h4>
-  <button id="addFriendBtn">Add Friend (by ID)</button>
-  <button id="removeFriendBtn">Remove Friend (by ID)</button>
-</div>
-
-<!-- PROFILE MODAL -->
-<div id="profileModal" class="modal">
-  <div class="modalContent">
-    <h3>Your Profile</h3>
-    <input id="profileName" placeholder="Name">
-    <input id="profileAvatar" placeholder="Avatar URL">
-    <button id="saveProfileBtn">Save</button>
-    <div id="profileInfo"></div>
-    <button class="closeModal">Close</button>
+  <!-- MAIN LAYOUT -->
+  <div id="mainLayout">
+    <div id="chatArea">
+      <div id="messages"></div>
+    </div>
   </div>
-</div>
 
-<!-- ROOM INFO MODAL -->
-<div id="roomInfoModal" class="modal">
-  <div class="modalContent">
-    <h3>Room Info</h3>
-    <div id="roomInfoContent"></div>
-    <button class="closeModal">Close</button>
+  <!-- BOTTOM BAR -->
+  <div id="bottomBar">
+    <button id="emojiBtn">😀</button>
+    <button id="fileBtn">📎</button>
+    <input id="msgInput" placeholder="Message">
+    <button id="sendBtn">Send</button>
+  </div>
+
+  <!-- RIGHT DRAWER -->
+  <div id="userDrawer" class="drawer">
+    <h3>Users</h3>
+    <div id="users"></div>
+
+    <h4>Host Controls</h4>
+    <div id="hostControls">
+      <input id="hostTargetId" placeholder="Target socket ID">
+      <button id="hostMuteBtn">Mute</button>
+      <button id="hostUnmuteBtn">Unmute</button>
+      <button id="hostKickBtn">Kick</button>
+      <button id="hostBanBtn">Ban</button>
+      <button id="hostTransferBtn">Transfer Host</button>
+      <button id="clearChatBtn">Clear Chat</button>
+      <button id="lockRoomBtn">Lock Room</button>
+      <button id="unlockRoomBtn">Unlock Room</button>
+      <button id="changePasswordBtn">Change Password</button>
+      <button id="toggleGoogleOnlyBtn">Toggle Google-only</button>
+      <button id="toggleGoogleVerifiedBtn">Toggle Google-verified</button>
+    </div>
+
+    <h4>Global Admin</h4>
+    <div id="adminControls">
+      <input id="adminTargetId" placeholder="Target socket ID">
+      <button id="makeAdminBtn">Make Admin</button>
+      <button id="removeAdminBtn">Remove Admin</button>
+      <button id="globalKickBtn">Global Kick</button>
+    </div>
+  </div>
+
+  <!-- LEFT DRAWER -->
+  <div id="dmDrawer" class="drawer left">
+    <h3>Direct Messages</h3>
+    <input id="dmTargetId" placeholder="Target ID">
+    <input id="dmText" placeholder="Message">
+    <button id="sendDMBtn">Send DM</button>
+    <div id="dmMessages"></div>
+
+    <h4>Friends</h4>
+    <button id="addFriendBtn">Add Friend (by ID)</button>
+    <button id="removeFriendBtn">Remove Friend (by ID)</button>
+  </div>
+
+  <!-- PROFILE MODAL -->
+  <div id="profileModal" class="modal">
+    <div class="modalContent">
+      <h3>Your Profile</h3>
+      <input id="profileName" placeholder="Name">
+      <input id="profileAvatar" placeholder="Avatar URL">
+      <button id="saveProfileBtn">Save</button>
+      <div id="profileInfo"></div>
+      <button class="closeModal">Close</button>
+    </div>
+  </div>
+
+  <!-- ROOM INFO MODAL -->
+  <div id="roomInfoModal" class="modal">
+    <div class="modalContent">
+      <h3>Room Info</h3>
+      <div id="roomInfoContent"></div>
+      <button class="closeModal">Close</button>
+    </div>
   </div>
 </div>
 
